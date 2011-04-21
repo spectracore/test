@@ -11,13 +11,13 @@ CONF_VERSION = "1"
 # Uncomment and set to allow bitbake to execute multiple tasks at once.
 # For a quadcore, BB_NUMBER_THREADS = "4", PARALLEL_MAKE = "-j 4" would
 # be appropriate.
-# BB_NUMBER_THREADS = "4"
+BB_NUMBER_THREADS = "4"
 # Also, make can be passed flags so it run parallel threads e.g.:
-# PARALLEL_MAKE = "-j 4"
+PARALLEL_MAKE = "-j 4"
 
 # Set a default machine to target unless a machine is selected from the 
 # lists below.
-MACHINE ??= "qemux86"
+#MACHINE ??= "qemux86"
 
 # Supported emulation machines
 #MACHINE ?= "qemuarm"
@@ -28,7 +28,7 @@ MACHINE ??= "qemux86"
 
 # Supported target hardware for demonstration purposes
 #MACHINE ?= "atom-pc"
-#MACHINE ?= "beagleboard"
+MACHINE ?= "beagleboard"
 #MACHINE ?= "emenlow"
 #MACHINE ?= "mpc8315e-rdb"
 #MACHINE ?= "routerstationpro"
@@ -69,7 +69,7 @@ EXTRA_IMAGE_FEATURES_mx31ads = "tools-testapps debug-tweaks"
 # include 'package_ipk' for ipks
 # include 'package_rpm' for rpms
 #PACKAGE_CLASSES ?= "package_rpm package_deb package_ipk"
-PACKAGE_CLASSES ?= "package_rpm package_ipk"
+PACKAGE_CLASSES ?= "package_rpm"
 
 # mklibs library size optimization is more useful to smaller images, 
 # and less useful for bigger images. Also mklibs library optimization can break the ABI compatibility, so should not be applied to the images which are tobe
@@ -84,7 +84,7 @@ PACKAGE_CLASSES ?= "package_rpm package_ipk"
 # include 'image-prelink' in order to prelink the filesystem image
 # include 'image-swab' to perform host system intrusion detection
 # NOTE: if listing mklibs & prelink both, then make sure mklibs is before prelink
-USER_CLASSES ?= "image-mklibs image-prelink"
+USER_CLASSES ?= "image-mklibs"
 
 # POKYMODE controls the characteristics of the generated packages/images by
 # telling poky which type of toolchain to use.
