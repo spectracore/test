@@ -3,7 +3,7 @@ SECTION = "libs"
 LICENSE = "LGPLv2.1 | GPLv3"
 PRIORITY = "optional"
 HOMEPAGE = "http://qt.nokia.com"
-DEPENDS += "directfb tslib"
+RDEPENDS += "directfb tslib openssl"
 INC_PR = "r26"
 
 QT_BASE_NAME ?= "qt4-embedded"
@@ -14,10 +14,9 @@ SRC_URI += "file://qte.sh"
 
 QT_CONFIG_FLAGS += " \
     -embedded ${QT_ARCH} \
-    -qtlibinfix ${QT_LIBINFIX} \
     -plugin-gfx-transformed -plugin-gfx-qvfb -plugin-gfx-vnc -plugin-gfx-directfb \
-    -plugin-mouse-tslib -qt-mouse-pc -qt-mouse-qvfb -qt-mouse-linuxinput \
-    -qt-kbd-tty \
+    -plugin-mouse-tslib -qt-mouse-pc -qt-mouse-qvfb -qt-mouse-linuxinput -qt-mouse-tslib \
+    -qt-kbd-tty -qt-kbd-linuxinput -openssl \
     -DQT_KEYPAD_NAVIGATION \
     "
 

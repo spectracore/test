@@ -13,7 +13,7 @@ QT_CONFIG_FLAGS += "-release -no-cups -reduce-relocations \
                     -shared -no-nas-sound -no-nis \
                     -qt-gif -system-libjpeg -system-libpng -system-zlib \
                     -no-sql-ibase -no-sql-mysql -no-sql-psql -no-sql-odbc -plugin-sql-sqlite \
-                    -no-pch -qdbus -stl -glib -phonon -webkit \
+                    -no-pch -qdbus -stl -glib -webkit \
                     ${QT_DISTRO_FLAGS} "
 
 EXTRA_OEMAKE = "-e"
@@ -41,14 +41,14 @@ python __anonymous () {
         pkg = "${QT_BASE_LIB}" + name.lower().replace("qt", "").replace("_", "-") + "4"
         # NOTE: the headers for QtAssistantClient are different
         incname = name.replace("QtAssistantClient", "QtAssistant")
-        bb.data.setVar("FILES_%s" % pkg, "${libdir}/lib%(name)s${QT_LIBINFIX}.so.*" % locals(), d)
-        bb.data.setVar("FILES_%s-dev" % pkg, """${libdir}/lib%(name)s${QT_LIBINFIX}.prl
-                  ${libdir}/lib%(name)s${QT_LIBINFIX}.a
-                  ${libdir}/lib%(name)s${QT_LIBINFIX}.la
-                  ${libdir}/lib%(name)s${QT_LIBINFIX}.so
+        bb.data.setVar("FILES_%s" % pkg, "${libdir}/lib%(name)s.so.*" % locals(), d)
+        bb.data.setVar("FILES_%s-dev" % pkg, """${libdir}/lib%(name)s.prl
+                  ${libdir}/lib%(name)s.a
+                  ${libdir}/lib%(name)s.la
+                  ${libdir}/lib%(name)s.so
                   ${includedir}/${QT_DIR_NAME}/%(incname)s
-                  ${libdir}/pkgconfig/%(name)s${QT_LIBINFIX}.pc""" % locals(), d)
-        bb.data.setVar("FILES_%s-dbg" % pkg, "${libdir}/.debug/lib%(name)s${QT_LIBINFIX}.so.*" % locals(), d)
+                  ${libdir}/pkgconfig/%(name)s.pc""" % locals(), d)
+        bb.data.setVar("FILES_%s-dbg" % pkg, "${libdir}/.debug/lib%(name)s.so.*" % locals(), d)
         lib_packages.append(pkg)
         dev_packages.append("%s-dev" % pkg)
         dbg_packages.append("%s-dbg" % pkg)
@@ -287,7 +287,7 @@ do_install() {
 			-e s#"uic_location=.*$"#"uic_location=${bindir}/uic4"# \
 			${D}${libdir}/pkgconfig/*.pc
 	for name in ${QT_LIB_NAMES}; do
-		sed -i -e /Requires/s#"${name}"#"${name}${QT_LIBINFIX}"#g ${D}${libdir}/pkgconfig/*.pc
+		sed -i -e /Requires/s#"${name}"#"${name}"#g ${D}${libdir}/pkgconfig/*.pc
 	done
 
 	# QT abuses $includedir to point to its headers, which breaks pkgconfig sysroot, so manually fix it up here:
@@ -307,6 +307,6 @@ do_install() {
 
 	#Append an E to the qtdemo file
 	if [ -n "${QT_LIBINFIX}" ] ; then
-		mv ${D}${bindir}/qtdemo ${D}${bindir}/qtdemo${QT_LIBINFIX}
+		mv ${D}${bindir}/qtdemo ${D}${bindir}/qtdemo
 	fi
 }

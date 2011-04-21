@@ -3,7 +3,8 @@ DEPENDS_prepend = "${@["qt4-embedded ", ""][(bb.data.getVar('PN', d, 1)[:12] == 
 inherit qmake2
 
 QT_DIR_NAME = "qtopia"
-QT_LIBINFIX = "E"
+#QT_LIBINFIX = "E"
+QT_LIBINFIX = ""
 # override variables set by qmake-base to compile Qt/Embedded apps
 #
 export QMAKESPEC = "${STAGING_DATADIR}/${QT_DIR_NAME}/mkspecs/${TARGET_OS}-oe-g++"
