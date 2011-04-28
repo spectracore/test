@@ -1,6 +1,7 @@
 inherit qmake_base
 
 DEPENDS += "qt4-tools-native freetype jpeg libpng zlib dbus openssl glib-2.0 gstreamer gst-plugins-base sqlite3"
+RDEPENDS += "freetype jpeg libpng zlib dbus openssl glib-2.0 gstreamer gst-plugins-base sqlite3"
 
 require qt4_arch.inc
 QT_ARCH := "${@qt_arch(d)}"
@@ -11,9 +12,10 @@ QT_DISTRO_FLAGS_poky-lsb = "-sm"
 
 QT_CONFIG_FLAGS += "-release -no-cups -reduce-relocations \
                     -shared -no-nas-sound -no-nis \
-                    -qt-gif -system-libjpeg -system-libpng -system-zlib \
+                    -qt-gif -system-libjpeg -system-libpng -system-zlib -svg \
                     -no-sql-ibase -no-sql-mysql -no-sql-psql -no-sql-odbc -plugin-sql-sqlite \
-                    -no-pch -qdbus -stl -glib -webkit \
+                    -no-pch -qdbus -stl -glib -webkit -dbus -phonon -phonon-backend -multimedia -audio-backend \
+		    -gstreamer \
                     ${QT_DISTRO_FLAGS} "
 
 EXTRA_OEMAKE = "-e"
@@ -118,11 +120,17 @@ RRECOMMENDS_${QT_BASE_NAME}-demos += " \
             ${QT_BASE_NAME}-examples \
             ${QT_BASE_NAME}-plugin-sqldriver-sqlite \
             ${QT_BASE_NAME}-plugin-imageformat-jpeg \
+            ${QT_BASE_NAME}-plugin-phonon_backend-phonon_gstreamer \
+            ${QT_BASE_NAME}-plugin-gfxdriver-directfbscreen \
+            ${QT_BASE_NAME}-plugin-iconengine-svgicon \
             ${QT_BASE_NAME}-assistant \
             ${PN}-doc"
 RRECOMMENDS_${QT_BASE_NAME}-examples += " \
             ${QT_BASE_NAME}-plugin-sqldriver-sqlite \
-            ${QT_BASE_NAME}-plugin-imageformat-jpeg"
+            ${QT_BASE_NAME}-plugin-imageformat-jpeg \
+            ${QT_BASE_NAME}-plugin-phonon_backend-phonon_gstreamer \
+            ${QT_BASE_NAME}-plugin-gfxdriver-directfbscreen \
+            ${QT_BASE_NAME}-plugin-iconengine-svgicon"
 
 FILES_${QT_BASE_NAME}-tools                = "${bindir}/uic* ${bindir}/moc ${bindir}/rcc ${bindir}/qttracereplay ${bindir}/qdoc*"
 FILES_${QT_BASE_NAME}-tools-dbg            = "${bindir}/.debug/uic* ${bindir}/.debug/moc ${bindir}/.debug/rcc ${bindir}/.debug/qttracereplay ${bindir}/.debug/qdoc*"

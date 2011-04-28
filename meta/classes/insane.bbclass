@@ -601,5 +601,6 @@ Rerun configure task after fixing this. The path was '%s'""" % root)
 Missing inherit gettext?""" % config)
 
     if not package_qa_check_license(workdir, d):
-        bb.fatal("Licensing Error: LIC_FILES_CHKSUM does not match, please fix")
+        bb.error("Licensing Error: LIC_FILES_CHKSUM does not match, please fix")
+#        bb.fatal("Licensing Error: LIC_FILES_CHKSUM does not match, please fix")
 }
