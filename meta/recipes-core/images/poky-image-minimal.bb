@@ -1,7 +1,7 @@
 #
 # Copyright (C) 2007 OpenedHand Ltd.
 #
-IMAGE_INSTALL = "task-poky-boot ${ROOTFS_PKGMANAGE_BOOTSTRAP}"
+IMAGE_INSTALL = "task-poky-boot ${ROOTFS_PKGMANAGE_BOOTSTRAP} kernel-modules"
 
 IMAGE_LINGUAS = " "
 
