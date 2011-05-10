@@ -29,7 +29,10 @@ RDEPENDS_gst-meta-base = "\
     gst-plugins-base-typefindfunctions \
     gst-plugins-base-videoscale \
     gst-plugins-base-ffmpegcolorspace \
-    gst-plugins-good-autodetect"
+    gst-plugins-good-autodetect \
+    gst-meta-audio \
+    gst-meta-debug \
+    gst-meta-video"
 
 
 RDEPENDS_gst-meta-audio = "\
