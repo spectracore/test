@@ -4,7 +4,7 @@ DESCRIPTION = "Laptop mode is a kernel mode that allows you to extend the batter
 PR = "r0"
 
 LICENSE = "GPL"
-LIC_FILES_CHKSUM = "file://COPYING; md5=393a5ca445f6965873eca0259a17f833" 
+LIC_FILES_CHKSUM = "file://COPYING;md5=393a5ca445f6965873eca0259a17f833" 
 
 SRC_URI ="http://samwel.tk/laptop_mode/tools/downloads/laptop-mode-tools_1.57.tar.gz"
 

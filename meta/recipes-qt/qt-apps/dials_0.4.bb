@@ -7,7 +7,8 @@ PR = "r1"
 DEPENDS = "qt4-embedded"
 
 SRC_URI = "file://dials-0.4/dials-0.4.tar.bz2"
-LIC_FILES_CHKSUM = "file://COPYING; md5=393a5ca445f6965873eca0259a17f833"
+
+LIC_FILES_CHKSUM = "file://COPYING;md5=393a5ca445f6965873eca0259a17f833"
 
 
 SRC_URI[md5sum] = "c181e899b37b8ef87351572da55a8237"
