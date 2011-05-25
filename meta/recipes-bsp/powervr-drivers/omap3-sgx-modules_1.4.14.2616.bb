@@ -34,11 +34,20 @@ PACKAGE_STRIP = "no"
 
 TI_PLATFORM_omap3 = "omap3630"
 TI_PLATFORM_ti816x = "ti8168"
+TI_PLATFORM = "${TI_PLATFORM_omap3}"
 
 MODULESLOCATION_omap3 = "dc_omap3430_linux"
 MODULESLOCATION_ti816x = "dc_ti8168_linux"
+MODULESLOCATION = "${MODULESLOCATION_omap3}"
 
 MAKE_TARGETS = " BUILD=${PVRBUILD} TI_PLATFORM=${TI_PLATFORM}"
+
+do_compile_prepend(){
+        export KERNELDIR=${STAGING_KERNEL_DIR}/
+#       cp -r ${STAGING_KERNEL_DIR}/include/* ${STAGING_KERNEL_DIR}/source/include/
+#       cp -r ${STAGING_KERNEL_DIR}/scripts/* ${STAGING_KERNEL_DIR}/source/scripts/
+#       cp -r ${STAGING_KERNEL_DIR}/Module.symvers ${STAGING_KERNEL_DIR}/source/
+}
 
 do_install() {
 	mkdir -p ${D}/lib/modules/${KERNEL_VERSION}/kernel/drivers/gpu/pvr
