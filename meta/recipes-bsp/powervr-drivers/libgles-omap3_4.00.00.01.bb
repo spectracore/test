@@ -32,6 +32,7 @@ do_install() {
         cp ${S}/gfx_rel_es6.x/*.so ${D}/usr/lib
         cp ${S}/gfx_rel_es6.x/*.a ${D}/usr/lib
         cp ${S}/gfx_rel_es6.x/*.h ${D}/usr/include
+	cp -r ${S}/GFX_Linux_SDK/OGLES/SDKPackage/Builds/OGLES/Include/* ${D}/usr/include/
         cp ${S}/gfx_rel_es6.x/eglinfo \
            ${S}/gfx_rel_es6.x/gl2info \
            ${S}/gfx_rel_es6.x/gles1test1 \

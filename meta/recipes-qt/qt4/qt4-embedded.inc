@@ -3,7 +3,7 @@ SECTION = "libs"
 LICENSE = "LGPLv2.1 | GPLv3"
 PRIORITY = "optional"
 HOMEPAGE = "http://qt.nokia.com"
-DEPENDS += "directfb"
+DEPENDS += "directfb omap3-sgx-modules libgles-omap3"
 RDEPENDS += "tslib openssl"
 INC_PR = "r26"
 
@@ -15,7 +15,7 @@ SRC_URI += "file://qte.sh"
 
 QT_CONFIG_FLAGS += " \
     -embedded ${QT_ARCH} \
-    -plugin-gfx-transformed -plugin-gfx-qvfb -plugin-gfx-vnc -plugin-gfx-directfb \
+    -plugin-gfx-transformed -plugin-gfx-qvfb -plugin-gfx-vnc -plugin-gfx-directfb -plugin-gfx-powervr -opengl es1 \
     -plugin-mouse-tslib -qt-mouse-pc -qt-mouse-qvfb -qt-mouse-linuxinput -qt-mouse-tslib \
     -qt-kbd-tty -qt-kbd-linuxinput -openssl \
     -DQT_KEYPAD_NAVIGATION \
