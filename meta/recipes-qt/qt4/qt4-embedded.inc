@@ -14,11 +14,11 @@ QT_BASE_LIB  ?= "libqt-embedded"
 SRC_URI += "file://qte.sh"
 
 QT_CONFIG_FLAGS += " \
-    -embedded ${QT_ARCH} \
-    -plugin-gfx-transformed -plugin-gfx-qvfb -plugin-gfx-vnc -plugin-gfx-directfb -plugin-gfx-powervr -opengl es1 \
+    -embedded ${QT_ARCH} -egl \
+    -plugin-gfx-transformed -plugin-gfx-qvfb -plugin-gfx-vnc -plugin-gfx-directfb -plugin-gfx-powervr -opengl es1 -openvg \
     -plugin-mouse-tslib -qt-mouse-pc -qt-mouse-qvfb -qt-mouse-linuxinput -qt-mouse-tslib \
     -qt-kbd-tty -qt-kbd-linuxinput -openssl \
-    -DQT_KEYPAD_NAVIGATION \
+    -DQT_KEYPAD_NAVIGATION -D QT_QWS_CLIENTBLIT -D QT_NO_QWS_CURSOR \
     "
 
 require qt4.inc
@@ -28,7 +28,7 @@ do_install_append() {
     install -m 0755 ${WORKDIR}/qte.sh ${D}${sysconfdir}/profile.d/
 }
 
-FILES_${PN} += " ${sysconfdir}/profile.d/qte.sh"
+FILES_${PN} += " ${sysconfdir}/profile.d/qte.sh /usr/bin/* /usr/lib/*"
 
 inherit qt4e
 
