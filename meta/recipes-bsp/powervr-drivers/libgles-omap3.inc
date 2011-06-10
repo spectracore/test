@@ -123,6 +123,10 @@ do_install () {
 	cp -pPR ${BINLOCATION}/*.so* ${D}${libdir}
 	install -m 0644 ${BINLOCATION}/*.a ${D}${libdir}
 
+	install -d ${D}${sysconfdir}
+	install -d ${D}${sysconfdir}/profile.d/
+	install -m 0755 ${WORKDIR}/powervr.sh ${D}${sysconfdir}/profile.d/
+	
 	install -d ${D}${bindir}/
 	install -m 0755 ${WORKDIR}/cputype ${D}${bindir}/
 

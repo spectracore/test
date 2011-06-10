@@ -19,6 +19,7 @@ SRC_URI = "http://software-dl.ti.com/dsps/dsps_public_sw/sdo_sb/targetcontent/gf
                    file://rc.pvr \
                    file://sample.desktop \
                    file://99-bufferclass.rules  \
+		   file://powervr.sh \
 "
 
 SRC_URI[md5sum] = "a027002dcd7164df467b1a315788d5fd"
