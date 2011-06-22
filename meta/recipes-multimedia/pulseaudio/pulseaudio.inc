@@ -55,6 +55,8 @@ RREPLACES_pulseaudio-server = "libpulse-bin libpulse-conf"
 
 PACKAGES_DYNAMIC = "pulseaudio-lib* pulseaudio-module* libpulse-lib* libpulse-module* "
 
+PACKAGES  = "${PN}"
+
 FILES_libpulsecore = "${libdir}/libpulsecore*.so"
 FILES_libpulsecommon = "${libdir}/libpulsecommon*.so"
 FILES_libpulsedsp = "${libdir}/libpulsedsp*.so"
@@ -72,9 +74,10 @@ FILES_${PN}-bin = "${bindir}/* \
 FILES_${PN}-server = "${bindir}/pulseaudio ${bindir}/start-* ${sysconfdir} ${bindir}/pactl"
 FILES_${PN}-gconf-helper = "${libexecdir}/pulse/gconf-helper"
 FILES_${PN}-misc = "${bindir}/*"
+FILES_${PN} += "${sysconfdir}/pulse/* ${sysconfdir}/d-bus1/* ${bindir}/* ${libdir}/*"
 
 # Allow the pulseaudio package to be created empty as a placeholder (-dbg and -dev depend on it)
-ALLOW_EMPTY_${PN} = "1"
+#ALLOW_EMPTY_${PN} = "1"
 
 CONFFILES_pulseaudio-server = "\ 
   ${sysconfdir}/pulse/default.pa \

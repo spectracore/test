@@ -11,7 +11,8 @@ PREFERRED_VERSION_pseudo = "1.0"
 PREFERRED_VERSION_pseudo-native = "1.0"
 
 PULSEAUDIOVERSION ?= "0.9.22"
-PULSEAUDIOVERSION_arm ?= "0.9.15"
+#PULSEAUDIOVERSION_arm ?= "0.9.15"
+PULSEAUDIOVERSION_arm ?= "0.9.22"
 PREFERRED_VERSION_pulseaudio ?= "${PULSEAUDIOVERSION}"
 
 # Force the python versions in one place
