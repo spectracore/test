@@ -80,9 +80,7 @@ OTHER_PACKAGES = "\
              ${QT_BASE_NAME}-assistant \
              ${QT_BASE_NAME}-common \
              ${QT_BASE_NAME}-dbus \
-             ${QT_BASE_NAME}-demos \
              ${QT_BASE_NAME}-designer \
-             ${QT_BASE_NAME}-examples \
              ${QT_BASE_NAME}-fonts \
              ${QT_BASE_NAME}-fonts-ttf-vera \
              ${QT_BASE_NAME}-fonts-ttf-dejavu \
@@ -114,18 +112,15 @@ RRECOMMENDS_${QT_BASE_NAME}-fonts = " \
              ${QT_BASE_NAME}-fonts-pfa \
              ${QT_BASE_NAME}-fonts-pfb \
              ${QT_BASE_NAME}-fonts-qpf"
-RRECOMMENDS_${QT_BASE_NAME}-demos += " \
-            ${QT_BASE_NAME}-fonts \
-            ${QT_BASE_NAME}-examples \
+RRECOMMENDS_${QT_BASE_NAME}-fonts += "\
             ${QT_BASE_NAME}-plugin-sqldriver-sqlite \
             ${QT_BASE_NAME}-plugin-imageformat-jpeg \
             ${QT_BASE_NAME}-plugin-phonon_backend-phonon_gstreamer \
             ${QT_BASE_NAME}-plugin-gfxdriver-directfbscreen \
             ${QT_BASE_NAME}-plugin-iconengine-svgicon \
-            ${QT_BASE_NAME}-assistant \
-            ${PN}-doc"
-RRECOMMENDS_${QT_BASE_NAME}-examples += " \
-            ${QT_BASE_NAME}-plugin-sqldriver-sqlite \
+            ${QT_BASE_NAME}-assistant"
+
+RRECOMMENDS_${QT_BASE_NAME}-plugin-sqldriver-sqlite += "\
             ${QT_BASE_NAME}-plugin-imageformat-jpeg \
             ${QT_BASE_NAME}-plugin-phonon_backend-phonon_gstreamer \
             ${QT_BASE_NAME}-plugin-gfxdriver-directfbscreen \
@@ -139,12 +134,12 @@ FILES_${QT_BASE_NAME}-common               = "${bindir}/qtconfig"
 FILES_${QT_BASE_NAME}-common-dbg           = "${bindir}/.debug/qtconfig"
 FILES_${QT_BASE_NAME}-dbus                 = "${bindir}/qdbus ${bindir}/qdbusxml2cpp ${bindir}/qdbuscpp2xml ${bindir}/qdbusviewer"
 FILES_${QT_BASE_NAME}-dbus-dbg             = "${bindir}/.debug/qdbus ${bindir}/.debug/qdbusxml2cpp ${bindir}/.debug/qdbuscpp2xml ${bindir}/.debug/qdbusviewer"
-FILES_${QT_BASE_NAME}-demos                = "${bindir}/qtdemo* ${bindir}/${QT_DIR_NAME}/demos/*"
-FILES_${QT_BASE_NAME}-demos-dbg            = "${bindir}/.debug/qtdemo* ${bindir}/${QT_DIR_NAME}/demos/.debug/*  ${bindir}/${QT_DIR_NAME}/demos/*/.debug  ${bindir}/${QT_DIR_NAME}/demos/*/*/.debug  ${bindir}/${QT_DIR_NAME}/demos/*/*/*/.debug"
+#FILES_${QT_BASE_NAME}-demos                = "${bindir}/qtdemo* ${bindir}/${QT_DIR_NAME}/demos/*"
+#FILES_${QT_BASE_NAME}-demos-dbg            = "${bindir}/.debug/qtdemo* ${bindir}/${QT_DIR_NAME}/demos/.debug/*  ${bindir}/${QT_DIR_NAME}/demos/*/.debug  ${bindir}/${QT_DIR_NAME}/demos/*/*/.debug  ${bindir}/${QT_DIR_NAME}/demos/*/*/*/.debug"
 FILES_${QT_BASE_NAME}-designer             = "${bindir}/*designer*"
 FILES_${QT_BASE_NAME}-designer-dbg         = "${bindir}/.debug/*designer*"
-FILES_${QT_BASE_NAME}-examples             = "${bindir}/${QT_DIR_NAME}/examples/*"
-FILES_${QT_BASE_NAME}-examples-dbg         = "${bindir}/${QT_DIR_NAME}/examples/.debug ${bindir}/${QT_DIR_NAME}/examples/*/.debug ${bindir}/${QT_DIR_NAME}/examples/*/*/.debug ${bindir}/${QT_DIR_NAME}/examples/*/*/*/.debug ${bindir}/${QT_DIR_NAME}/examples/*/*/*/*/.debug ${bindir}/${QT_DIR_NAME}/examples/declarative/*/*/*/*/*/.debug/* ${bindir}/${QT_DIR_NAME}/examples/declarative/*/*/*/*/.debug/*"
+#FILES_${QT_BASE_NAME}-examples             = "${bindir}/${QT_DIR_NAME}/examples/*"
+#FILES_${QT_BASE_NAME}-examples-dbg         = "${bindir}/${QT_DIR_NAME}/examples/.debug ${bindir}/${QT_DIR_NAME}/examples/*/.debug ${bindir}/${QT_DIR_NAME}/examples/*/*/.debug ${bindir}/${QT_DIR_NAME}/examples/*/*/*/.debug ${bindir}/${QT_DIR_NAME}/examples/*/*/*/*/.debug ${bindir}/${QT_DIR_NAME}/examples/declarative/*/*/*/*/*/.debug/* ${bindir}/${QT_DIR_NAME}/examples/declarative/*/*/*/*/.debug/*"
 FILES_${QT_BASE_NAME}-fonts-ttf-vera       = "${libdir}/fonts/Vera*.ttf"
 FILES_${QT_BASE_NAME}-fonts-ttf-dejavu     = "${libdir}/fonts/DejaVu*.ttf"
 FILES_${QT_BASE_NAME}-fonts-pfa            = "${libdir}/fonts/*.pfa"
@@ -189,8 +184,8 @@ do_configure() {
 	echo "Data=${datadir}/${QT_DIR_NAME}"         >> $QT_CONF_PATH
 	echo "Translations=${datadir}/${QT_DIR_NAME}/translations" >> $QT_CONF_PATH
 	echo "Settings=${sysconfdir}/${QT_DIR_NAME}"  >> $QT_CONF_PATH
-	echo "Examples=${bindir}/${QT_DIR_NAME}/examples" >> $QT_CONF_PATH
-	echo "Demos=${bindir}/${QT_DIR_NAME}/demos"   >> $QT_CONF_PATH
+#	echo "Examples=${bindir}/${QT_DIR_NAME}/examples" >> $QT_CONF_PATH
+#	echo "Demos=${bindir}/${QT_DIR_NAME}/demos"   >> $QT_CONF_PATH
 
 	${EXTRA_QMAKE_MUNGE}|| true
 
@@ -313,7 +308,7 @@ do_install() {
 	done
 
 	#Append an E to the qtdemo file
-	if [ -n "${QT_LIBINFIX}" ] ; then
-		mv ${D}${bindir}/qtdemo ${D}${bindir}/qtdemo
-	fi
+#	if [ -n "${QT_LIBINFIX}" ] ; then
+#		mv ${D}${bindir}/qtdemo ${D}${bindir}/qtdemo
+#	fi
 }
