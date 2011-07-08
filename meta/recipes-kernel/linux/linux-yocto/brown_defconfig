@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.37.3 Kernel Configuration
-# Thu Jun 16 19:10:59 2011
+# Thu Jul  7 10:52:39 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -267,7 +267,8 @@ CONFIG_OMAP_MUX=y
 # CONFIG_OMAP_MUX_DEBUG is not set
 CONFIG_OMAP_MUX_WARNINGS=y
 CONFIG_OMAP_MCBSP=y
-# CONFIG_OMAP_MBOX_FWK is not set
+CONFIG_OMAP_MBOX_FWK=m
+CONFIG_OMAP_MBOX_KFIFO_SIZE=256
 # CONFIG_OMAP_MPU_TIMER is not set
 CONFIG_OMAP_32K_TIMER=y
 # CONFIG_OMAP3_L2_AUX_SECURE_SAVE_RESTORE is not set
@@ -2079,7 +2080,54 @@ CONFIG_RTC_DRV_TWL4030=y
 # CONFIG_DMADEVICES is not set
 # CONFIG_AUXDISPLAY is not set
 # CONFIG_UIO is not set
-# CONFIG_STAGING is not set
+CONFIG_STAGING=y
+# CONFIG_STAGING_EXCLUDE_BUILD is not set
+# CONFIG_VIDEO_CPIA is not set
+# CONFIG_USB_IP_COMMON is not set
+# CONFIG_ECHO is not set
+# CONFIG_BRCM80211 is not set
+# CONFIG_RT2870 is not set
+# CONFIG_COMEDI is not set
+# CONFIG_ASUS_OLED is not set
+# CONFIG_R8712U is not set
+# CONFIG_TRANZPORT is not set
+# CONFIG_POHMELFS is not set
+# CONFIG_AUTOFS_FS is not set
+# CONFIG_LINE6_USB is not set
+# CONFIG_VT6656 is not set
+# CONFIG_FB_UDL is not set
+# CONFIG_IIO is not set
+# CONFIG_ZRAM is not set
+# CONFIG_BATMAN_ADV is not set
+# CONFIG_FB_SM7XX is not set
+
+#
+# Texas Instruments shared transport line discipline
+#
+# CONFIG_ADIS16255 is not set
+# CONFIG_SMB_FS is not set
+# CONFIG_EASYCAP is not set
+CONFIG_TIDSPBRIDGE=m
+CONFIG_TIDSPBRIDGE_MEMPOOL_SIZE=0x600000
+CONFIG_TIDSPBRIDGE_DEBUG=y
+CONFIG_TIDSPBRIDGE_RECOVERY=y
+# CONFIG_TIDSPBRIDGE_CACHE_LINE_CHECK is not set
+# CONFIG_TIDSPBRIDGE_WDT3 is not set
+# CONFIG_TIDSPBRIDGE_NTFY_PWRERR is not set
+# CONFIG_TIDSPBRIDGE_BACKTRACE is not set
+# CONFIG_WESTBRIDGE is not set
+CONFIG_WESTBRIDGE_HAL_SELECTED=y
+CONFIG_MACH_OMAP3_WESTBRIDGE_AST_PNAND_HAL=y
+# CONFIG_MACH_NO_WESTBRIDGE is not set
+# CONFIG_ATH6K_LEGACY is not set
+# CONFIG_USB_ENESTORAGE is not set
+# CONFIG_BCM_WIMAX is not set
+# CONFIG_FT1000 is not set
+
+#
+# Speakup console speech
+#
+# CONFIG_SPEAKUP is not set
 
 #
 # File systems
