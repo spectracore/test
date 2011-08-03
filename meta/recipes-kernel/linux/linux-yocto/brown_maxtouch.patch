@@ -1,0 +1,4290 @@
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index 191b780..0e5a07f 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -3,56 +3,79 @@
+  *
+  * Copyright (C) 2008 Texas Instruments
+  *
+- * Modified from mach-omap2/board-3430sdp.c
+  *
+  * Initial code: Syed Mohammed Khasim
++ * Modified from mach-omap2/board-3430sdp.c
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 as
+  * published by the Free Software Foundation.
+  */
+ 
+-#include <linux/kernel.h>
+-#include <linux/init.h>
+-#include <linux/platform_device.h>
++#include <linux/clk.h>
+ #include <linux/delay.h>
+ #include <linux/err.h>
+-#include <linux/clk.h>
++#include <linux/init.h>
+ #include <linux/io.h>
+-#include <linux/leds.h>
+-#include <linux/gpio.h>
+-#include <linux/input.h>
+-#include <linux/gpio_keys.h>
++#include <linux/kernel.h>
++#include <linux/platform_device.h>
++#include <linux/i2c/twl.h>
++#include <linux/regulator/machine.h>
+ 
+ #include <linux/mtd/mtd.h>
+-#include <linux/mtd/partitions.h>
+ #include <linux/mtd/nand.h>
++#include <linux/mtd/partitions.h>
+ #include <linux/mmc/host.h>
+ 
+-#include <linux/regulator/machine.h>
+-#include <linux/i2c/twl.h>
+-#include <linux/i2c.h>
+-#include <linux/i2c/tsc2007.h>
+-
+-#include <mach/hardware.h>
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+-#include <asm/mach/map.h>
+ #include <asm/mach/flash.h>
++#include <asm/mach/map.h>
+ 
+ #include <plat/board.h>
+ #include <plat/common.h>
+-#include <plat/display.h>
++#include <linux/gpio.h>
+ #include <plat/gpmc.h>
++#include <mach/hardware.h>
+ #include <plat/nand.h>
+ #include <plat/usb.h>
+ 
+ #include "mux.h"
+ #include "hsmmc.h"
+-#include "timer-gp.h"
++
++#include <linux/leds.h>
++#include <linux/input.h>
++#include <linux/gpio_keys.h>
++#include <linux/irq.h>
++#include <linux/backlight.h>
++
++
++#include <linux/i2c.h>
++#include <linux/atmel_maxtouch.h>
++
++
++#include <plat/display.h>
++#include <plat/timer-gp.h>
++
++#include <video/platform_lcd.h>
++
++//#include <linux/mfd/mustang-fpga-codec.h>
++
++//#include <fcntl.h>
++//#include <unistd.h>
++//#include <sys/ioctl.h>
++#include <linux/types.h>
++#include <plat/mcspi.h>
++#include <linux/spi/spi.h>
++#include <linux/spi/spidev.h>
+ 
+ #define NAND_BLOCK_SIZE		SZ_128K
+ 
++#define	BROWN_GPIO_TS_INT	137	// touch screen interrupt
++#define	BROWN_GPIO_LCD_ENA	138	// LCD enable
++#define	BROWN_GPIO_LCD_PWR	139	// LCD power
++#define	BROWN_GPIO_TS_RESET	136	// touch screen reset
++
+ /*
+  * OMAP3 Beagle revision
+  * Run time detection of Beagle revision is done by reading GPIO.
+@@ -182,37 +205,6 @@ static struct omap_nand_platform_data omap3beagle_nand_data = {
+ 
+ /* DSS */
+ 
+-static int beagle_enable_dvi(struct omap_dss_device *dssdev)
+-{
+-	if (gpio_is_valid(dssdev->reset_gpio))
+-		gpio_set_value(dssdev->reset_gpio, 1);
+-
+-	return 0;
+-}
+-
+-static void beagle_disable_dvi(struct omap_dss_device *dssdev)
+-{
+-	if (gpio_is_valid(dssdev->reset_gpio))
+-		gpio_set_value(dssdev->reset_gpio, 0);
+-}
+-
+-static struct omap_dss_device beagle_dvi_device = {
+-	.type = OMAP_DISPLAY_TYPE_DPI,
+-        .name = "dvi",
+-        .driver_name = "generic_panel",
+-        .phy.dpi.data_lines = 24, 
+-        .reset_gpio = 170,
+-//        .platform_enable = beagle_enable_dvi,
+-//        .platform_disable = beagle_disable_dvi,
+-
+-};
+-
+-static struct omap_dss_device beagle_tv_device = {
+-	.name = "tv",
+-	.driver_name = "venc",
+-	.type = OMAP_DISPLAY_TYPE_VENC,
+-	.phy.venc.type = OMAP_DSS_VENC_TYPE_SVIDEO,
+-};
+ 
+ static int beagle_enable_lcd(struct omap_dss_device *dssdev)
+ {
+@@ -230,16 +222,14 @@ static void beagle_disable_lcd(struct omap_dss_device *dssdev)
+ 
+ static struct omap_dss_device beagle_lcd_device = { 
+         .name                   = "lcd",
+-        .driver_name            = "cmel_oled43_panel",
++        .driver_name            = "brown_panel", //"cmel_oled43_panel",
+         .type                   = OMAP_DISPLAY_TYPE_DPI,
+         .phy.dpi.data_lines     = 24, 
+-        .reset_gpio             = 157,
++        .reset_gpio             = BROWN_GPIO_LCD_ENA,
+ 
+ };
+ 
+ static struct omap_dss_device *beagle_dss_devices[] = {
+-//	&beagle_dvi_device,
+-//	&beagle_tv_device,
+ 	&beagle_lcd_device,
+ };
+ 
+@@ -257,6 +247,171 @@ static struct platform_device beagle_dss_device = {
+ 	},
+ };
+ 
++/* General Purpose Timers */
++#define OMAP34XX_GPT1	0x48318000
++#define OMAP34XX_GPT2	0x49032000
++#define OMAP34XX_GPT3	0x49034000
++#define OMAP34XX_GPT4	0x49036000
++#define OMAP34XX_GPT5	0x49038000
++#define OMAP34XX_GPT6	0x4903A000
++#define OMAP34XX_GPT7	0x4903C000
++#define OMAP34XX_GPT8	0x4903E000
++#define OMAP34XX_GPT9	0x49040000
++#define OMAP34XX_GPT10	0x48086000
++#define OMAP34XX_GPT11	0x48088000
++#define OMAP34XX_GPT12	0x48304000
++
++struct gptimer {
++	u32 tidr;	/* 0x00 r */
++	u8 res[0xc];
++	u32 tiocp_cfg;	/* 0x10 rw */
++	u32 tistat;	/* 0x14 r */
++	u32 tisr;	/* 0x18 rw */
++	u32 tier;	/* 0x1c rw */
++	u32 twer;	/* 0x20 rw */
++	u32 tclr;	/* 0x24 rw */
++	u32 tcrr;	/* 0x28 rw */
++	u32 tldr;	/* 0x2c rw */
++	u32 ttgr;	/* 0x30 rw */
++	u32 twpc;	/* 0x34 r*/
++	u32 tmar;	/* 0x38 rw*/
++	u32 tcar1;	/* 0x3c r */
++	u32 tcicr;	/* 0x40 rw */
++	u32 tcar2;	/* 0x44 r */
++};
++
++#define	TCLR_GPO_CFG_OUT	(0<<14)		// Output mode
++#define	TCLR_GPO_CFG_IN		(1<<14)		// Input capture mode
++#define	TCLR_CAPT_MODE_1	(0<<13)		// capture first event in TCAR1
++#define	TCLR_CAPT_MODE_2	(1<<13)		// capture second event in TCAR1
++#define	TCLR_PULSE		(0<<12)		// pulse modulation
++#define	TCLR_TOGGLE		(1<<12)		// toggle modulation
++#define	TCLR_TRG_NONE		(0<<10)		// Trigger output - none
++#define	TCLR_TRG_OVERFLOW	(1<<10)		// Trigger output - overflow
++#define	TCLR_TRG_OVERMATCH	(2<<10)		// Trigger output - overflow and match
++#define	TCLR_TRG_RESERVED	(3<<10)		// Trigger output - reserved
++#define	TCLR_TCM_NONE		(0<<8)		// Transition capture mode - none
++#define	TCLR_TCM_RISING		(1<<8)		// Transition capture mode - rising edge only
++#define	TCLR_TCM_FALLING	(2<<8)		// Transition capture mode - falling edge only
++#define	TCLR_TCM_BOTH		(3<<8)		// Transition capture mode - both edges
++#define	TCLR_SCPWM_0		(0<<7)		// default PWM output 0
++#define	TCLR_SCPWM_1		(1<<7)		// default PWM output 1
++#define	TCLR_CE			(1<<6)		// Compare enable
++#define	TCLR_PRE		(1<<5)		// Prescaler enable
++#define	TCLR_PTV_2		(0<<2)		// Trigger output mode prescale x2
++#define	TCLR_PTV_4		(1<<2)		// Trigger output mode prescale x4
++#define	TCLR_PTV_8		(2<<2)		// Trigger output mode prescale x8
++#define	TCLR_PTV_16		(3<<2)		// Trigger output mode prescale x16
++#define	TCLR_PTV_32		(4<<2)		// Trigger output mode prescale x32
++#define	TCLR_PTV_64		(5<<2)		// Trigger output mode prescale x64
++#define	TCLR_PTV_128		(6<<2)		// Trigger output mode prescale x128
++#define	TCLR_PTV_256		(7<<2)		// Trigger output mode prescale x256
++#define	TCLR_AR			(1<<1)		// Autoreload mode
++#define	TCLR_STOP		(0<<0)		// Stop the timer
++#define	TCLR_START		(1<<0)		// Start the timer
++
++#define	TCLR_PWM	(TCLR_GPO_CFG_OUT|TCLR_TOGGLE|TCLR_TRG_OVERMATCH|TCLR_TCM_NONE|TCLR_SCPWM_0|TCLR_CE|TCLR_AR|TCLR_START)
++#define	MINPERIOD	0x10
++#define	LCD_PERIOD	0x100	// about 50Khz
++#define	LCD_PWM		OMAP34XX_GPT9
++#define BL_ENABLE_PIN	145 // this is the enable pin on the DC-DC used by the backlight circuit.
++
++struct clk *bl_ick = NULL;
++struct clk *bl_fck = NULL;
++struct clk *dss_ick = NULL;
++struct clk *dss1_fck = NULL;
++//struct clk *sys_clkout1 = NULL;
++//struct clk *sys_clkout2 = NULL;
++
++static volatile struct gptimer *lcd_gpt_base = NULL;
++
++// setup General purpose timer as PWM
++static void
++set_gpt_pwm(volatile struct gptimer *t,unsigned int width, unsigned int period)
++{
++	if( period < MINPERIOD )
++		period=MINPERIOD;
++	if( width < 2 )
++		width = 2;
++	if( width >= period )
++		width = period-1;
++	if(t==NULL)
++		return;
++
++	writel( TCLR_STOP,          &t->tclr);
++	writel( 0xFFFFFFFFu-width,  &t->tmar);
++	writel( 0xFFFFFFFFu-period, &t->tldr);
++	writel( 0xFFFFFFFFu-period, &t->tcrr);
++	writel( TCLR_PWM,           &t->tclr);
++}
++
++static void brown_bl_set_intensity(int intensity)
++{
++	if( intensity < 1)
++	{
++		intensity = 1;
++		gpio_set_value(BL_ENABLE_PIN, 0);
++	}
++	else
++	{
++		gpio_set_value(BL_ENABLE_PIN, 1);
++	}
++	if( intensity >= LCD_PERIOD )
++	{
++		intensity = LCD_PERIOD - 1;
++	}
++	set_gpt_pwm(lcd_gpt_base, intensity, LCD_PERIOD);
++}
++
++static void brown_bl_setup(void)
++{
++	// grab GPT9 clock so that the power is not removed from it during boot...
++	bl_fck = clk_get(NULL,"gpt9_fck");
++	clk_enable(bl_fck);
++	bl_ick = clk_get(NULL,"gpt9_ick");
++	clk_enable(bl_ick);
++	lcd_gpt_base = ioremap(LCD_PWM,SZ_4K);
++	omap_mux_init_gpio(BL_ENABLE_PIN, OMAP_PIN_OUTPUT); 
++	gpio_request(BL_ENABLE_PIN, "Backlight_Enable");
++	gpio_direction_output(BL_ENABLE_PIN, true);
++}
++
++static struct omap2_mcspi_device_config brown_audio_mcspi_config = {
++	.turbo_mode	= 0,
++	.single_channel	= 1,	/* 0: slave, 1: master */
++};
++
++static struct spi_board_info brown_audio_spi_board_info[] __initdata = {
++	{
++		.modalias		= "spidev",
++		.bus_num		= 3,
++		.chip_select		= 0,
++		.max_speed_hz		= 1500000,
++		.controller_data	= &brown_audio_mcspi_config,
++	}
++};
++
++static void __init brown_audio_spi_init(void)
++{
++	spi_register_board_info(brown_audio_spi_board_info,
++			ARRAY_SIZE(brown_audio_spi_board_info));
++}
++
++static struct generic_bl_info brown_bl_info = {
++	.name			= "brown-bl",
++	.max_intensity		= LCD_PERIOD-1,
++	.default_intensity	= LCD_PERIOD-1,
++	.set_bl_intensity	= brown_bl_set_intensity,
++};
++
++static struct platform_device brown_bl_device = {
++	.name			= "generic-bl",
++	.id			= 1,
++	.dev = {
++		.platform_data	= &brown_bl_info,
++	},
++};
++
+ static struct regulator_consumer_supply beagle_vdac_supply =
+ 	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+ 
+@@ -447,7 +602,7 @@ static struct twl4030_platform_data beagle_twldata = {
+ 	/* platform_data for children goes here */
+ 	.usb		= &beagle_usb_data,
+ 	.gpio		= &beagle_gpio_data,
+-	.codec		= &beagle_codec_data,
++	.codec		= &beagle_codec_data, // Audio goes through McBSP1 to external codec.
+ 	.vmmc1		= &beagle_vmmc1,
+ 	.vsim		= &beagle_vsim,
+ 	.vdac		= &beagle_vdac,
+@@ -464,58 +619,60 @@ static struct i2c_board_info __initdata beagle_i2c_boardinfo[] = {
+ };
+ 
+ /* TouchScreen */
+-#define OMAP3_BEAGLETOUCH_TS_GPIO 136
+-static int tsc2007_get_pendown_state(void)
++
++static unsigned char brown_mxt_read_chg(void)
+ {
+-	return !gpio_get_value(OMAP3_BEAGLETOUCH_TS_GPIO);
++	int v = gpio_get_value(BROWN_GPIO_TS_INT);
++
++	return v;
+ }
+ 
+-static int omap3beagletouch_tsc2007_init(void)
++static unsigned char brown_mxt_valid_interrupt(void)
+ {
+-	int gpio = OMAP3_BEAGLETOUCH_TS_GPIO;
+-	int ret = 0;
+-
+-	ret = gpio_request(gpio, "tsc2007_pen_down");
+-	if (ret < 0) {
+-		printk(KERN_ERR "Failed to request GPIO %d for "
+-				"tsc2007 pen down IRQ\n", gpio);
+-		return ret;
+-	}
++	return 1;
++}
+ 
+-	gpio_direction_input(gpio);
++static void brown_mxt_init_platform_hw(void)
++{
++	gpio_set_value(BROWN_GPIO_TS_RESET,0);
++	udelay(1);	// 90ns minimum
++	gpio_set_value(BROWN_GPIO_TS_RESET,1);
++        mdelay(240);	// supposed to be ready after 40ms, but really seems to take longer than that
++	printk(KERN_INFO "End of brown_mxt_init_platform");
++}
+ 
+-	return ret;
++static void brown_mxt_exit_platform_hw(void)
++{
++	gpio_set_value(BROWN_GPIO_TS_RESET,0);
+ }
+ 
+-static struct tsc2007_platform_data tsc2007_info = {
+-	.model			= 2007,
+-	.x_plate_ohms		= 180,
+-	.get_pendown_state	= tsc2007_get_pendown_state,
+-	.init_platform_hw	= omap3beagletouch_tsc2007_init,
++static struct mxt_platform_data brown_tsdata = {
++        .numtouch		= 10,			/* Number of touches to report  */
++        .init_platform_hw	= brown_mxt_init_platform_hw,
++        .exit_platform_hw	= brown_mxt_exit_platform_hw,
++        .max_x			= 480,   		/* The default reported X range   */
++        .max_y			= 272,    		/* The default reported Y range   */
++        .valid_interrupt	= brown_mxt_valid_interrupt,
++        .read_chg		= brown_mxt_read_chg,
+ };
+ 
+-static struct i2c_board_info __initdata ts_i2c_clients[] = {
++static struct i2c_board_info __initdata brown_i2c3_boardinfo[] = {
+ 	{
+-		I2C_BOARD_INFO("tsc2007", 0x48),
+-		.irq	= OMAP_GPIO_IRQ(OMAP3_BEAGLETOUCH_TS_GPIO),
+-		.platform_data	= &tsc2007_info,
++		I2C_BOARD_INFO("maXTouch", 0x4B),	// 0x4A=APP_LOW, 0x4B=APP_HIGH, 0x24=BOOT_LOW, 0x25=BOOT_HIGH
++		//.flags = I2C_CLIENT_WAKE,
++		.irq = OMAP_GPIO_IRQ(BROWN_GPIO_TS_INT),
++		.platform_data = &brown_tsdata,
+ 	},
+ };
+ 
+-static struct i2c_board_info __initdata beagle_i2c_eeprom[] = {
+-       {
+-               I2C_BOARD_INFO("eeprom", 0x50),
+-       },
+-};
++
+ 
+ static int __init omap3_beagle_i2c_init(void)
+ {
+ 	omap_register_i2c_bus(1, 2600, beagle_i2c_boardinfo,
+ 			ARRAY_SIZE(beagle_i2c_boardinfo));
+-	/* Bus 3 is attached to the DVI port where devices like the pico DLP
+-	 * projector don't work reliably with 400kHz */
+-//	omap_register_i2c_bus(3, 100, beagle_i2c_eeprom, ARRAY_SIZE(beagle_i2c_eeprom));
+-	omap_register_i2c_bus(3, 100, ts_i2c_clients, ARRAY_SIZE(ts_i2c_clients));
++	printk("Between two i2c initializations");
++	omap_register_i2c_bus(3,  400, brown_i2c3_boardinfo, ARRAY_SIZE(brown_i2c3_boardinfo));	// Touch screen
+ 	return 0;
+ }
+ 
+@@ -587,11 +744,13 @@ static void __init omap3_beagle_init_irq(void)
+ 	omap2_gp_clockevent_set_gptimer(12);
+ #endif
+ 	omap_gpio_init();
++
+ }
+ 
+ static struct platform_device *omap3_beagle_devices[] __initdata = {
+ 	&leds_gpio,
+ 	&keys_gpio,
++	&brown_bl_device,
+ 	&beagle_dss_device,
+ };
+ 
+@@ -640,13 +799,21 @@ static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
+ 	.reset_gpio_port[2]  = -EINVAL
+ };
+ 
+-#ifdef CONFIG_OMAP_MUX
++//#ifdef CONFIG_OMAP_MUX
+ static struct omap_board_mux board_mux[] __initdata = {
++	OMAP3_MUX(I2C2_SCL, OMAP_MUX_MODE0),
++	OMAP3_MUX(I2C2_SDA, OMAP_MUX_MODE0),
++	OMAP3_MUX(UART2_CTS, OMAP_MUX_MODE2), // Setup gpio 144 to ouput the PWM from timer 9
++	OMAP3_MUX(SDMMC2_CLK, OMAP_MUX_MODE1), // Enable SPI3 on the Beagle expansion connector
++	OMAP3_MUX(SDMMC2_DAT0, OMAP_MUX_MODE1),
++	OMAP3_MUX(SDMMC2_CMD, OMAP_MUX_MODE1),
++	OMAP3_MUX(SDMMC2_DAT3, OMAP_MUX_MODE1),
++
+ 	{ .reg_offset = OMAP_MUX_TERMINATOR },
+ };
+-#else
+-#define board_mux	NULL
+-#endif
++//#else
++//#define board_mux	NULL
++//#endif
+ 
+ static struct omap_musb_board_data musb_board_data = {
+ 	.interface_type		= MUSB_INTERFACE_ULPI,
+@@ -654,32 +821,27 @@ static struct omap_musb_board_data musb_board_data = {
+ 	.power			= 100,
+ };
+ 
+-/* Pins for the BeagleTouch OLED */
+-#define CS_PIN          139
+-#define MOSI_PIN        144
+-#define CLK_PIN         138
+-#define RESET_PIN       137
+-#define PANEL_PWR_PIN   143
+ 
+ static void __init omap3_beagle_init(void)
+ {
++	printk("Start of omap3_beagle_init");
+ 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
+ 	omap3_beagle_init_rev();
+ 	omap3_beagle_i2c_init();
++	brown_bl_setup();	// map in the timer that controls the LCD backlight
++	brown_audio_spi_init(); 
++
+ 	platform_add_devices(omap3_beagle_devices,
+ 			ARRAY_SIZE(omap3_beagle_devices));
+ 	omap_serial_init();
+ 
+-	/* BeagleTouch OLED */
+-    omap_mux_init_gpio(CS_PIN, OMAP_PIN_OUTPUT);
+-    omap_mux_init_gpio(MOSI_PIN, OMAP_PIN_OUTPUT);
+-    omap_mux_init_gpio(CLK_PIN, OMAP_PIN_OUTPUT);
+-    omap_mux_init_gpio(RESET_PIN, OMAP_PIN_OUTPUT);
+-    omap_mux_init_gpio(PANEL_PWR_PIN, OMAP_PIN_OUTPUT);
+-	omap_mux_init_gpio(OMAP3_BEAGLETOUCH_TS_GPIO, OMAP_PIN_INPUT_PULLUP);
+ 
+ 	omap_mux_init_gpio(170, OMAP_PIN_INPUT);
+ 	gpio_request(170, "DVI_nPD");
++
++	omap_mux_init_gpio(BROWN_GPIO_LCD_PWR, OMAP_PIN_INPUT);
++	gpio_request(BROWN_GPIO_LCD_PWR, "LCD_nPD");
++	gpio_direction_output(BROWN_GPIO_LCD_PWR, true);	
+ 	/* REVISIT leave DVI powered down until it's needed ... */
+ 	gpio_direction_output(170, true);
+ 
+diff --git a/arch/arm/plat-omap/include/plat/timer-gp.h b/arch/arm/plat-omap/include/plat/timer-gp.h
+new file mode 100644
+index 0000000..c88d346
+--- /dev/null
++++ b/arch/arm/plat-omap/include/plat/timer-gp.h
+@@ -0,0 +1,17 @@
++/*
++ * OMAP2/3 GPTIMER support.headers
++ *
++ * Copyright (C) 2009 Nokia Corporation
++ *
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License. See the file "COPYING" in the main directory of this archive
++ * for more details.
++ */
++
++#ifndef __ARCH_ARM_PLAT_OMAP_INCLUDE_MACH_TIMER_GP_H
++#define __ARCH_ARM_PLAT_OMAP_INCLUDE_MACH_TIMER_GP_H
++
++int __init omap2_gp_clockevent_set_gptimer(u8 id);
++
++#endif
++
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index 06ea8da..d8df671 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -476,6 +476,19 @@ config TOUCHSCREEN_WM97XX_ATMEL
+ 	  To compile this driver as a module, choose M here: the module will
+ 	  be called atmel-wm97xx.
+ 
++config TOUCHSCREEN_ATMEL_MAXTOUCH
++ 	tristate "Atmel maXTouch based touchscreen: I2C Interface"
++ 	depends on I2C
++ 	help
++ 	  Say Y here if you have a touchscreen interface using an
++ 	  Amel maXTouch controller, and your board-specific initialization
++ 	  code includes that in its table of I2C devices.
++ 
++ 	  If unsure, say N (but it's safe to say "Y").
++ 
++ 	  To compile this driver as a module, choose M here: the
++ 	  module will be called maXTouch.
++
+ config TOUCHSCREEN_WM97XX_MAINSTONE
+ 	tristate "WM97xx Mainstone/Palm accelerated touch"
+ 	depends on TOUCHSCREEN_WM97XX && ARCH_PXA
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index 7cc1b4f..beaf7d8 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -13,6 +13,7 @@ obj-$(CONFIG_TOUCHSCREEN_AD7879_I2C)	+= ad7879-i2c.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879_SPI)	+= ad7879-spi.o
+ obj-$(CONFIG_TOUCHSCREEN_ADS7846)	+= ads7846.o
+ obj-$(CONFIG_TOUCHSCREEN_ATMEL_TSADCC)	+= atmel_tsadcc.o
++obj-$(CONFIG_TOUCHSCREEN_ATMEL_MAXTOUCH) += atmel_maxtouch.o
+ obj-$(CONFIG_TOUCHSCREEN_BITSY)		+= h3600_ts_input.o
+ obj-$(CONFIG_TOUCHSCREEN_BU21013)       += bu21013_ts.o
+ obj-$(CONFIG_TOUCHSCREEN_CY8CTMG110)	+= cy8ctmg110_ts.o
+diff --git a/drivers/input/touchscreen/atmel_maxtouch.c b/drivers/input/touchscreen/atmel_maxtouch.c
+new file mode 100644
+index 0000000..4f6977a
+--- /dev/null
++++ b/drivers/input/touchscreen/atmel_maxtouch.c
+@@ -0,0 +1,1120 @@
++/*
++ *  Atmel maXTouch Touchscreen Controller Driver
++ *
++ *
++ *  Copyright (C) 2010 Atmel Corporation
++ *  Copyright (C) 2010 Ulf Samuelsson (ulf@atmel.com)
++ *  Copyright (C) 2009 Raphael Derosso Pereira <raphaelpereira@gmail.com>
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation; either version 2 of the License, or
++ *  (at your option) any later version.
++ *
++ *  This program is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with this program; if not, write to the Free Software
++ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++/*
++ *
++ * Driver for Atmel maXTouch family of touch controllers.
++ *
++ */
++#include <linux/i2c.h>
++#include <linux/interrupt.h>
++#include <linux/input.h>
++#include <linux/cdev.h>
++#include <linux/mutex.h>
++#include <linux/slab.h>
++#include <linux/uaccess.h>
++#include <linux/wait.h>
++#include <linux/sched.h>
++#include <linux/atmel_maxtouch.h>
++
++/* MXT_TOUCH_MULTI field */
++#define MXT_TOUCH_CTRL		0
++#define MXT_TOUCH_XORIGIN	1
++#define MXT_TOUCH_YORIGIN	2
++#define MXT_TOUCH_XSIZE		3
++#define MXT_TOUCH_YSIZE		4
++#define MXT_TOUCH_BLEN		6
++#define MXT_TOUCH_TCHTHR	7
++#define MXT_TOUCH_TCHDI		8
++#define MXT_TOUCH_ORIENT	9
++#define		MXT_TOUCH_ORIENT_INVERTY	0x4
++#define		MXT_TOUCH_ORIENT_INVERTX	0x2
++#define		MXT_TOUCH_ORIENT_SWITCH		0x1
++#define MXT_TOUCH_MOVHYSTI	11
++#define MXT_TOUCH_MOVHYSTN	12
++#define MXT_TOUCH_NUMTOUCH	14
++#define MXT_TOUCH_MRGHYST	15
++#define MXT_TOUCH_MRGTHR	16
++#define MXT_TOUCH_AMPHYST	17
++#define MXT_TOUCH_XRANGE_LSB	18
++#define MXT_TOUCH_XRANGE_MSB	19
++#define MXT_TOUCH_YRANGE_LSB	20
++#define MXT_TOUCH_YRANGE_MSB	21
++#define MXT_TOUCH_XLOCLIP	22
++#define MXT_TOUCH_XHICLIP	23
++#define MXT_TOUCH_YLOCLIP	24
++#define MXT_TOUCH_YHICLIP	25
++#define MXT_TOUCH_XEDGECTRL	26
++#define MXT_TOUCH_XEDGEDIST	27
++#define MXT_TOUCH_YEDGECTRL	28
++#define MXT_TOUCH_YEDGEDIST	29
++#define MXT_TOUCH_JUMPLIMIT	30	/* firmware ver 22 over */
++
++#define DRIVER_VERSION "0.92a"
++
++#define I2C_RETRY_COUNT 5
++
++/* Device Info descriptor */
++/* Parsed from maXTouch "Id information" inside device */
++struct mxt_device_info
++{
++	u8 family_id;
++	u8 variant_id;
++	u8 major;
++	u8 minor;
++	u8 build;
++	u8 num_objs;
++	u8 x_size;
++	u8 y_size;
++	char family_name[16];	/* Family name */
++	char variant_name[16];	/* Variant name */
++	u16 num_nodes;		/* Number of sensor nodes */
++};
++
++/* object descriptor table, parsed from maXTouch "object table" */
++struct mxt_object
++{
++	u16 chip_addr;
++	u8 type;
++	u8 size;
++	u8 instances;
++	u8 num_report_ids;
++};
++
++/* Mapping from report id to object type and instance */
++struct report_id_map
++{
++	u8 object;
++	u8 instance;
++/*
++ * This is the first report ID belonging to object. It enables us to
++ * find out easily the touch number: each touch has different report
++ * ID (which are assigned to touches in increasing order). By
++ * subtracting the first report ID from current, we get the touch
++ * number.
++ */
++	u8 first_rid;
++};
++
++/* Driver datastructure */
++struct mxt_data
++{
++	struct i2c_client *client;
++	struct input_dev *input;
++	char phys_name[32];
++	int irq;
++	u16 last_read_addr;
++	int bytes_to_read;
++	struct delayed_work dwork;
++	u8 numtouch;
++	struct mxt_device_info device_info;
++	u32 info_block_crc;
++	u32 configuration_crc;
++	u16 report_id_count;
++	struct report_id_map *rid_map;
++	struct mxt_object *object_table;
++	u16 message_addr;
++	u8 message_size;
++	u16 max_x_val;
++	u16 max_y_val;
++	void (*init_hw) (void);
++	void (*exit_hw) (void);
++	  u8 (*valid_interrupt) (void);
++	  u8 (*read_chg) (void);
++	/* Character device variables */
++	struct cdev cdev_messages;	/* 2nd Char dev for messages */
++	dev_t dev_num;
++	struct class *mxt_class;
++	u8 error_cond;
++	int last_size[MXT_MAX_NUM_TOUCHES];
++	int last_x[MXT_MAX_NUM_TOUCHES];
++	int last_y[MXT_MAX_NUM_TOUCHES];
++	u8 message[256];
++};
++
++
++struct elog {
++	u16 x[MXT_MAX_NUM_TOUCHES];
++	u16 y[MXT_MAX_NUM_TOUCHES];
++};
++
++#define	MAX_ELOG	1024		// maximum number of log entries
++#define	NO_TOUCH	0xFFFF		// finger up
++struct elog Elog[MAX_ELOG];
++unsigned int Elog_in = 0;
++unsigned int Elog_out = 0;
++static DECLARE_WAIT_QUEUE_HEAD(Elog_wait);
++
++static inline void
++add_elog(struct mxt_data *mxt)
++{
++	int f;
++	int enext = Elog_in+1;
++
++	if( enext >= MAX_ELOG )
++		enext = 0;
++	if( enext == Elog_out )
++		return;	// log buffer is full
++	for(f=0;f<MXT_MAX_NUM_TOUCHES;f++){
++		Elog[Elog_in].x[f] = mxt->last_size[f] ? mxt->last_x[f] : NO_TOUCH;
++		Elog[Elog_in].y[f] = mxt->last_size[f] ? mxt->last_y[f] : NO_TOUCH;
++		}
++	Elog_in = enext;
++	wake_up(&Elog_wait);
++}
++
++static inline void
++clear_finger_history(struct mxt_data *mxt)
++{
++	int f;
++
++	for(f=0;f<MXT_MAX_NUM_TOUCHES;f++)
++		mxt->last_size[f] = 0;	// sufficient to mark all fingers as 'up'
++}
++
++static inline void
++report_mt (int finger, int size, int x, int y, struct mxt_data *mxt)
++{
++	struct input_dev *input = mxt->input;
++	int f;
++	int mt_count = 0;
++
++	if( finger < 0 || finger >= MXT_MAX_NUM_TOUCHES )
++		return;
++	if( size==mxt->last_size[finger] && x==mxt->last_x[finger] && y==mxt->last_y[finger] )
++		return;	// don't report duplicates
++	mxt->last_size[finger] = size;
++	mxt->last_x[finger]    = x;
++	mxt->last_y[finger]    = y;
++
++	// report all active touches (type A?)
++	for(f=0;f<MXT_MAX_NUM_TOUCHES;f++)
++		if( mxt->last_size[f] ){
++			//input_mt_slot(input, f);
++			input_report_abs (input, ABS_MT_TRACKING_ID, f);
++			input_report_abs (input, ABS_MT_POSITION_X, mxt->last_x[f]);
++			input_report_abs (input, ABS_MT_POSITION_Y, mxt->last_y[f]);
++			input_mt_sync (input);
++			mt_count++;
++			}
++	if(mt_count==0)input_mt_sync (input);	// if no touches active, send a single mt_sync event
++	input_sync (input);
++	add_elog(mxt);
++}
++
++static inline void
++report_gesture (int event, int dir, int dist, int x, int y, struct mxt_data *mxt)
++{
++
++	struct input_dev *input = mxt->input;
++	input_event (input, EV_MSC, MSC_GESTURE, (event<<24) | (dir<<16) | dist);
++	input_event (input, EV_MSC, MSC_GESTURE, (x<<16) | y);
++
++}
++
++/* Returns the start address of object in mXT memory. */
++#define MXT_BASE_ADDR(object_type, mxt) get_object_address(object_type, mxt->object_table, mxt->device_info.num_objs)
++
++static u16 get_object_address (uint8_t object_type, struct mxt_object *object_table, int max_objs);
++/* Routines for memory access within a 16 bit address space */
++static int mxt_read_block(struct i2c_client *client, u16 addr, u16 length, u8 *value);
++static int mxt_write_byte(struct i2c_client *client, u16 addr, u8 value);
++
++int
++mxt_message_open (struct inode *inode, struct file *file)
++{
++	struct mxt_data *mxt = container_of (inode->i_cdev, struct mxt_data, cdev_messages);
++
++	if (mxt == NULL)
++		return -EIO;
++	file->private_data = mxt;
++	return 0;
++}
++
++/*
++ * Copies messages from buffer to user space.
++ */
++ssize_t
++mxt_message_read (struct file * file, char *buf, size_t count, loff_t * ppos)
++{
++	struct mxt_data *mxt = file->private_data;
++	int f,maxf;
++	int eidx;
++	char *p = buf;
++        ssize_t retval;
++
++	if (mxt == NULL)
++		return -EIO;
++        if ((Elog_in == Elog_out) && (file->f_flags & O_NONBLOCK))
++                return -EAGAIN;
++        if( (retval = wait_event_interruptible(Elog_wait, Elog_in != Elog_out)) < 0 )
++                return retval;
++
++	while( Elog_in != Elog_out ){
++		eidx = Elog_out;
++		for(maxf=MXT_MAX_NUM_TOUCHES;maxf>1;maxf--)
++			if( Elog[eidx].x[maxf-1] != NO_TOUCH )
++				break;	// found highest numbered 'down' finger
++		if( ((p-buf)+(maxf*8)+1) >= count )
++			break;	// maybe no room for another event
++		for(f=0;f<maxf;f++){
++			if( Elog[eidx].x[f] != NO_TOUCH )
++				p += sprintf(p,"%3d,%-3d ",Elog[eidx].x[f],Elog[eidx].y[f]);
++			else
++				p += sprintf(p,"---,--- ");
++			}
++		p += sprintf(p,"\n");
++		eidx++;
++		if( eidx >= MAX_ELOG )
++			eidx = 0;
++		Elog_out = eidx;
++		}
++	return p - buf;
++}
++
++static const struct file_operations mxt_message_fops = {
++	.owner = THIS_MODULE,
++	.open = mxt_message_open,
++	.read = mxt_message_read,
++};
++
++/* Calculates the 24-bit CRC sum. */
++static u32
++CRC_24 (u32 crc, u8 byte1, u8 byte2)
++{
++	static const u32 crcpoly = 0x80001B;
++	u32 data_word = ((((u16) byte2) << 8u) | byte1);
++	u32 result = ((crc << 1u) ^ data_word);
++
++	if (result & 0x1000000)
++		result ^= crcpoly;
++	return result;
++}
++
++/* Returns object address in mXT chip, or zero if object is not found */
++static u16
++get_object_address (uint8_t object_type, struct mxt_object *object_table, int max_objs)
++{
++	uint8_t i;
++	struct mxt_object *obj;
++
++	for (i = 0; i < max_objs; i++) {
++		obj = &object_table[i];
++		if (obj->type == object_type)
++			return obj->chip_addr;
++	}
++	return 0;
++}
++
++/*
++ * Reads a block of bytes from given address from mXT chip. If we are
++ * reading from message window, and previous read was from message window,
++ * there's no need to write the address pointer: the mXT chip will
++ * automatically set the address pointer back to message window start.
++ */
++static int
++mxt_read_block (struct i2c_client *client, u16 addr, u16 length, u8 * value)
++{
++	struct i2c_adapter *adapter = client->adapter;
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++	struct i2c_msg msg[2];
++	__le16 le_addr;
++
++	if (mxt != NULL) {
++		if ((mxt->last_read_addr == addr) && (addr == mxt->message_addr)) {
++			if (i2c_master_recv (client, value, length) == length)
++				return length;
++			return -EIO;
++		}
++		else {
++			mxt->last_read_addr = addr;
++		}
++	}
++	le_addr = cpu_to_le16 (addr);
++	msg[0].addr = client->addr;
++	msg[0].flags = 0x00;
++	msg[0].len = 2;
++	msg[0].buf = (u8 *) & le_addr;
++	msg[1].addr = client->addr;
++	msg[1].flags = I2C_M_RD;
++	msg[1].len = length;
++	msg[1].buf = (u8 *) value;
++	if (i2c_transfer (adapter, msg, 2) == 2)
++		return length;
++	return -EIO;
++}
++
++/* Writes one byte to given address in mXT chip. */
++static int
++mxt_write_byte (struct i2c_client *client, u16 addr, u8 value)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++	struct {
++		__le16 le_addr;
++		u8 data;
++	} i2c_byte_transfer;
++
++	if (mxt != NULL)
++		mxt->last_read_addr = -1;
++	i2c_byte_transfer.le_addr = cpu_to_le16 (addr);
++	i2c_byte_transfer.data = value;
++	if (i2c_master_send (client, (u8 *) & i2c_byte_transfer, 3) == 3)
++		return 0;
++	return -EIO;
++}
++
++/* Calculates the CRC value for mXT infoblock. */
++int
++calculate_infoblock_crc (u32 * crc_result, u8 * data, int crc_area_size)
++{
++	u32 crc = 0;
++	int i;
++
++	for (i = 0; i < (crc_area_size - 1); i = i + 2)
++		crc = CRC_24 (crc, *(data + i), *(data + i + 1));
++	/* If uneven size, pad with zero */
++	if (crc_area_size & 0x0001)
++		crc = CRC_24 (crc, *(data + i), 0);
++	/* Return only 24 bits of CRC. */
++	*crc_result = (crc & 0x00FFFFFF);
++	return 0;
++}
++
++static inline void
++process_T6_message (u8 * message, struct mxt_data *mxt)
++{
++	struct i2c_client *client = mxt->client;
++	u8 status = message[1];
++
++	if (status & MXT_MSGB_T6_COMSERR) {
++		if (!(mxt->error_cond & MXT_MSGB_T6_COMSERR)) {
++			dev_err (&client->dev, "maXTouch checksum error\n");
++			mxt->error_cond |= MXT_MSGB_T6_COMSERR;
++		}
++	}
++	if (status & MXT_MSGB_T6_CFGERR) {	/* Configuration error */
++		/* A proper configuration needs to be written to chip and backed up */
++		if (!(mxt->error_cond & MXT_MSGB_T6_CFGERR)) {
++			dev_err (&client->dev, "maXTouch configuration error\n");
++			mxt->error_cond |= MXT_MSGB_T6_CFGERR;
++		}
++	}
++	if (status & MXT_MSGB_T6_SIGERR) {	/* Signal acquisition error */
++		/* Something is seriously wrong, not much we can do to correct this */
++		if (!(mxt->error_cond & MXT_MSGB_T6_SIGERR)) {
++			dev_err (&client->dev, "maXTouch acquisition error\n");
++			mxt->error_cond |= MXT_MSGB_T6_SIGERR;
++		}
++	}
++	if (status & MXT_MSGB_T6_OFL)	/* Cycle overflow, the acquisition interval is too short. */
++		dev_err (&client->dev, "maXTouch cycle overflow\n");
++	if (status & MXT_MSGB_T6_CAL)	/* Calibration in progress */
++		dev_info (&client->dev, "maXTouch calibration in progress\n");
++	if (status & MXT_MSGB_T6_RESET)	/* Chip has reset */
++		dev_info (&client->dev, "maXTouch chip reset\n");
++
++	if (status == 0) { /* Chip status back to normal. */
++		dev_info (&client->dev, "maXTouch status normal\n");
++		mxt->error_cond = 0;
++	}
++	clear_finger_history(mxt);	// any T6 event causes us to forget all previous multi-touch history
++}
++
++/* Processes a touchscreen message. */
++static inline void
++process_T9_message (u8 * message, struct mxt_data *mxt)
++{
++	unsigned int status     = message[MXT_MSG_T9_STATUS];
++	unsigned int x          = message[MXT_MSG_T9_XPOSMSB] * 16 + ((message[MXT_MSG_T9_XYPOSLSB] >> 4) & 0xF);
++	unsigned int y          = message[MXT_MSG_T9_YPOSMSB] * 16 + ((message[MXT_MSG_T9_XYPOSLSB] >> 0) & 0xF);
++	//unsigned int size       = message[MXT_MSG_T9_TCHAREA] >> 2;
++	unsigned int report_id  = message[MXT_MSG_T9_ID];
++	unsigned int finger     = message[MXT_MSG_REPORTID] - mxt->rid_map[report_id].first_rid;
++
++	/* Adjust from 12-bit to 10-bit depending on size of display */
++	if (mxt->max_x_val < 1024) x >>= 2;
++	if (mxt->max_y_val < 1024) y >>= 2;
++
++	if (status & MXT_MSGB_T9_PRESS)
++		report_mt (finger, 1, x, y, mxt);
++	if (status & MXT_MSGB_T9_MOVE)
++		report_mt (finger, 1, x, y, mxt);
++	if (status & MXT_MSGB_T9_RELEASE)	/* The previously reported touch has been removed. */
++		report_mt (finger, 0, x, y, mxt);
++}
++
++static inline void
++process_T24_message (u8 * message, struct mxt_data *mxt)
++{
++
++	unsigned int event      = message[MXT_MSG_T24_STATUS] & 0x0F;	// lower 4 bits are one-gesture type
++	unsigned int x          = message[MXT_MSG_T24_XPOSMSB] * 16 + ((message[MXT_MSG_T24_XYPOSLSB] >> 4) & 0xF);
++	unsigned int y          = message[MXT_MSG_T24_YPOSMSB] * 16 + ((message[MXT_MSG_T24_XYPOSLSB] >> 0) & 0xF);
++	unsigned int dir        = message[MXT_MSG_T24_DIR];
++	unsigned int dist       = message[MXT_MSG_T24_DIST] + (message[MXT_MSG_T24_DIST+1] << 8);
++
++	/* Adjust from 12-bit to 10-bit depending on size of display */
++	if (mxt->max_x_val < 1024) x >>= 2;
++	if (mxt->max_y_val < 1024) y >>= 2;
++
++	report_gesture(event,dir,dist,x,y,mxt);
++
++}
++
++static inline void
++process_T25_message (u8 * message, struct mxt_data *mxt)
++{
++	struct i2c_client *client = mxt->client;
++	u8 status = message[MXT_MSG_T25_STATUS];
++
++	if (status != MXT_MSGR_T25_OK)
++		dev_err (&client->dev, "maXTouch: Self-Test Failed %02x {%02x,%02x,%02x,%02x,%02x}\n", status,
++			message[MXT_MSG_T25_INFO+0],
++			message[MXT_MSG_T25_INFO+1],
++			message[MXT_MSG_T25_INFO+2],
++			message[MXT_MSG_T25_INFO+3],
++			message[MXT_MSG_T25_INFO+4]);
++}
++
++static inline void
++process_T27_message (u8 * message, struct mxt_data *mxt)
++{
++
++	unsigned int event      = message[MXT_MSG_T27_STATUS] & 0xF0;	// upper 4 bits are two-gesture flags
++	unsigned int x          = message[MXT_MSG_T27_XPOSMSB] * 16 + ((message[MXT_MSG_T27_XYPOSLSB] >> 4) & 0xF);
++	unsigned int y          = message[MXT_MSG_T27_YPOSMSB] * 16 + ((message[MXT_MSG_T27_XYPOSLSB] >> 0) & 0xF);
++	unsigned int dir        = message[MXT_MSG_T27_ANGLE];
++	unsigned int dist       = message[MXT_MSG_T27_SEPARATION] + (message[MXT_MSG_T27_SEPARATION+1] << 8);
++
++	/* Adjust from 12-bit to 10-bit depending on size of display */
++	if (mxt->max_x_val < 1024) x >>= 2;
++	if (mxt->max_y_val < 1024) y >>= 2;
++
++	report_gesture(event,dir,dist,x,y,mxt);
++
++}
++
++static inline void
++process_T28_message (u8 * message, struct mxt_data *mxt)
++{
++	struct i2c_client *client = mxt->client;
++	u8 status = message[MXT_MSG_T28_STATUS];
++
++	if (status & MXT_MSGB_T28_CHKERR)
++		dev_err (&client->dev, "maXTouch: Power-Up CRC failure\n");
++}
++
++int
++process_message (u8 * message, u8 object, struct mxt_data *mxt)
++{
++	switch (object) {
++	case MXT_GEN_COMMANDPROCESSOR_T6:		process_T6_message(message, mxt);	break;
++	case MXT_TOUCH_MULTITOUCHSCREEN_T9:		process_T9_message(message, mxt);	break;
++	case MXT_SPT_GPIOPWM_T19:								break;
++	case MXT_PROCI_GRIPFACESUPPRESSION_T20:							break;
++	case MXT_PROCG_NOISESUPPRESSION_T22:							break;
++	case MXT_PROCI_ONETOUCHGESTUREPROCESSOR_T24:	process_T24_message(message, mxt);	break;
++	case MXT_SPT_SELFTEST_T25:			process_T25_message(message, mxt);	break;
++	case MXT_PROCI_TWOTOUCHGESTUREPROCESSOR_T27:	process_T27_message(message, mxt);	break;
++	case MXT_SPT_CTECONFIG_T28:			process_T28_message(message, mxt);	break;
++	default:
++		break;
++	}
++	return 0;
++}
++
++/*
++ * Processes messages when the interrupt line (CHG) is asserted. Keeps
++ * reading messages until CHG is not asserted which indicates that there are no more new messages.
++ */
++static void
++mxt_worker (struct work_struct *work)
++{
++	struct mxt_data *mxt = container_of (work, struct mxt_data, dwork.work);
++	struct i2c_client *client = mxt->client;
++	u8 report_id;
++	int i;
++
++	disable_irq (mxt->irq);
++	do {
++		/* Read next message, reread on failure. */
++		for (i = 0; i < I2C_RETRY_COUNT; i++) {
++			if( mxt_read_block (client, mxt->message_addr, mxt->message_size, mxt->message) >= 0 )
++				break;
++		}
++		if (i == I2C_RETRY_COUNT ){
++			dev_err (&client->dev, "Failure reading maxTouch device\n");
++			break;
++		}
++		report_id = mxt->message[0];
++		if ((report_id != MXT_END_OF_MESSAGES) && (report_id != 0))
++			process_message (mxt->message, mxt->rid_map[report_id].object, mxt);
++	} while ( mxt->read_chg () == 0 );
++	enable_irq (mxt->irq);
++	/* Make sure we just didn't miss a interrupt. */
++	if (mxt->read_chg () == 0)
++		schedule_delayed_work (&mxt->dwork, 0);
++}
++
++/*
++ * The maXTouch device will signal the host about a new message by asserting
++ * the CHG line. This ISR schedules a worker routine to read the message when
++ * that happens.
++ */
++static irqreturn_t
++mxt_irq_handler (int irq, void *_mxt)
++{
++	struct mxt_data *mxt = _mxt;
++
++	if (mxt->valid_interrupt ()) {
++		cancel_delayed_work (&mxt->dwork);
++		schedule_delayed_work (&mxt->dwork, 0);
++		return IRQ_HANDLED;
++	}
++	return IRQ_NONE;
++}
++
++/******************************************************************************/
++/* Initialization of driver                                                   */
++/******************************************************************************/
++static int __devinit
++mxt_identify (struct i2c_client *client, struct mxt_data *mxt, u8 * id_block_data)
++{
++	int identified = 0;
++	int error;
++	u8 buf[MXT_ID_BLOCK_SIZE];
++
++	/* Read Device info to check if chip is valid */
++	error = mxt_read_block (client, MXT_ADDR_INFO_BLOCK, MXT_ID_BLOCK_SIZE, (u8 *) buf);
++	if (error < 0) {
++		dev_err (&client->dev, "Failure accessing maXTouch device\n");
++		return -EIO;
++	}
++	memcpy (id_block_data, buf, MXT_ID_BLOCK_SIZE);
++	mxt->device_info.family_id = buf[0];
++	mxt->device_info.variant_id = buf[1];
++	mxt->device_info.major = ((buf[2] >> 4) & 0x0F);
++	mxt->device_info.minor = (buf[2] & 0x0F);
++	mxt->device_info.build = buf[3];
++	mxt->device_info.x_size = buf[4];
++	mxt->device_info.y_size = buf[5];
++	mxt->device_info.num_objs = buf[6];
++	mxt->device_info.num_nodes = mxt->device_info.x_size * mxt->device_info.y_size;
++	/*
++	 * Check Family & Variant Info; warn if not recognized but
++	 * still continue.
++	 */
++	/* MXT224 */
++	if (mxt->device_info.family_id == MXT224_FAMILYID) {
++		strcpy (mxt->device_info.family_name, "mXT224");
++		if (mxt->device_info.variant_id == MXT224_CAL_VARIANTID) {
++			strcpy (mxt->device_info.variant_name, "Calibrated");
++		}
++		else if (mxt->device_info.variant_id == MXT224_UNCAL_VARIANTID) {
++			strcpy (mxt->device_info.variant_name, "Uncalibrated");
++		}
++		else {
++			dev_err (&client->dev, "Warning: maXTouch Variant ID [%d] not " "supported\n", mxt->device_info.variant_id);
++			strcpy (mxt->device_info.variant_name, "UNKNOWN");
++			/* identified = -ENXIO; */
++		}
++		/* MXT1386 */
++	}
++	else if (mxt->device_info.family_id == MXT1386_FAMILYID) {
++		strcpy (mxt->device_info.family_name, "mXT1386");
++		if (mxt->device_info.variant_id == MXT1386_CAL_VARIANTID) {
++			strcpy (mxt->device_info.variant_name, "Calibrated");
++		}
++		else {
++			dev_err (&client->dev, "Warning: maXTouch Variant ID [%d] not " "supported\n", mxt->device_info.variant_id);
++			strcpy (mxt->device_info.variant_name, "UNKNOWN");
++			/* identified = -ENXIO; */
++		}
++		/* Unknown family ID! */
++	}
++	else {
++		dev_err (&client->dev, "Warning: maXTouch Family ID [%d] not supported\n", mxt->device_info.family_id);
++		strcpy (mxt->device_info.family_name, "UNKNOWN");
++		strcpy (mxt->device_info.variant_name, "UNKNOWN");
++		/* identified = -ENXIO; */
++	}
++	dev_info (&client->dev, "Atmel maXTouch (Family %s (%X), Variant %s (%X)) Firmware version [%d.%d] Build %d\n",
++		mxt->device_info.family_name, mxt->device_info.family_id, mxt->device_info.variant_name, mxt->device_info.variant_id,
++		mxt->device_info.major, mxt->device_info.minor, mxt->device_info.build);
++	dev_info (&client->dev, "Atmel maXTouch Configuration " "[X: %d] x [Y: %d] NUM_OBJECTS: %d\n",
++		mxt->device_info.x_size, mxt->device_info.y_size,mxt->device_info.num_objs);
++	return identified;
++}
++
++/*
++ * Reads the object table from maXTouch chip to get object data like
++ * address, size, report id. For Info Block CRC calculation, already read
++ * id data is passed to this function too (Info Block consists of the ID
++ * block and object table).
++ *
++ */
++static int __devinit
++mxt_read_object_table (struct i2c_client *client, struct mxt_data *mxt, u8 * raw_id_data)
++{
++	u16 report_id_count;
++	u8 buf[MXT_OBJECT_TABLE_ELEMENT_SIZE];
++	u8 *raw_ib_data;
++	u8 object_type;
++	u16 object_address;
++	u16 object_size;
++	u8 object_instances;
++	u8 object_report_ids;
++	u16 object_info_address;
++	u32 crc;
++	u32 calculated_crc;
++	int i;
++	int error;
++	u8 object_instance;
++	u8 object_report_id;
++	u8 report_id;
++	int first_report_id;
++	int ib_pointer;
++	struct mxt_object *object_table;
++
++	object_table = kzalloc (sizeof (struct mxt_object) * mxt->device_info.num_objs, GFP_KERNEL);
++	if (object_table == NULL) {
++		printk (KERN_WARNING "maXTouch: Memory allocation failed!\n");
++		error = -ENOMEM;
++		goto err_object_table_alloc;
++	}
++	raw_ib_data = kmalloc (MXT_OBJECT_TABLE_ELEMENT_SIZE * mxt->device_info.num_objs + MXT_ID_BLOCK_SIZE, GFP_KERNEL);
++	if (raw_ib_data == NULL) {
++		printk (KERN_WARNING "maXTouch: Memory allocation failed!\n");
++		error = -ENOMEM;
++		goto err_ib_alloc;
++	}
++	/* Copy the ID data for CRC calculation. */
++	memcpy (raw_ib_data, raw_id_data, MXT_ID_BLOCK_SIZE);
++	ib_pointer = MXT_ID_BLOCK_SIZE;
++	mxt->object_table = object_table;
++	object_info_address = MXT_ADDR_OBJECT_TABLE;
++	report_id_count = 0;
++	for (i = 0; i < mxt->device_info.num_objs; i++) {
++		error = mxt_read_block (client, object_info_address, MXT_OBJECT_TABLE_ELEMENT_SIZE, buf);
++		if (error < 0) {
++			dev_err (&client->dev, "maXTouch Object %d could not be read\n", i);
++			error = -EIO;
++			goto err_object_read;
++		}
++		memcpy (raw_ib_data + ib_pointer, buf, MXT_OBJECT_TABLE_ELEMENT_SIZE);
++		ib_pointer += MXT_OBJECT_TABLE_ELEMENT_SIZE;
++		object_type = buf[0];
++		object_address = (buf[2] << 8) + buf[1];
++		object_size = buf[3] + 1;
++		object_instances = buf[4] + 1;
++		object_report_ids = buf[5];
++		/* Save frequently needed info. */
++		if (object_type == MXT_GEN_MESSAGEPROCESSOR_T5) {
++			mxt->message_addr = object_address;
++			mxt->message_size = object_size;
++			if (mxt->message_size >= 256) {
++				dev_err (&client->dev, "Message length larger than 256 bytes not supported\n");
++				error = -EIO;
++				goto err_object_read;
++			}
++		}
++		object_table[i].type = object_type;
++		object_table[i].chip_addr = object_address;
++		object_table[i].size = object_size;
++		object_table[i].instances = object_instances;
++		object_table[i].num_report_ids = object_report_ids;
++		report_id_count += object_instances * object_report_ids;
++		object_info_address += MXT_OBJECT_TABLE_ELEMENT_SIZE;
++	}
++	mxt->rid_map = kzalloc (sizeof (struct report_id_map) * (report_id_count + 1),
++				/* allocate for report_id 0, even if not used */
++				GFP_KERNEL);
++	if (mxt->rid_map == NULL) {
++		printk (KERN_WARNING "maXTouch: Can't allocate memory!\n");
++		error = -ENOMEM;
++		goto err_rid_map_alloc;
++	}
++	mxt->report_id_count = report_id_count;
++	if (report_id_count > 254) {	/* 0 & 255 are reserved */
++		dev_err (&client->dev, "Too many maXTouch report id's [%d]\n", report_id_count);
++		error = -ENXIO;
++		goto err_max_rid;
++	}
++	/* Create a mapping from report id to object type */
++	report_id = 1;		/* Start from 1, 0 is reserved. */
++	/* Create table associating report id's with objects & instances */
++	for (i = 0; i < mxt->device_info.num_objs; i++) {
++		for (object_instance = 0; object_instance < object_table[i].instances; object_instance++) {
++			first_report_id = report_id;
++			for (object_report_id = 0; object_report_id < object_table[i].num_report_ids; object_report_id++) {
++				mxt->rid_map[report_id].object = object_table[i].type;
++				mxt->rid_map[report_id].instance = object_instance;
++				mxt->rid_map[report_id].first_rid = first_report_id;
++				report_id++;
++			}
++		}
++	}
++	/* Read 3 byte CRC */
++	error = mxt_read_block (client, object_info_address, 3, buf);
++	if (error < 0) {
++		dev_err (&client->dev, "Error reading CRC\n");
++	}
++	crc = (buf[2] << 16) | (buf[1] << 8) | buf[0];
++	if (calculate_infoblock_crc (&calculated_crc, raw_ib_data, ib_pointer)) {
++		printk (KERN_WARNING "Error while calculating CRC!\n");
++		calculated_crc = 0;
++	}
++	kfree (raw_ib_data);
++	if (crc == calculated_crc) {
++		mxt->info_block_crc = crc;
++	}
++	else {
++		mxt->info_block_crc = 0;
++		printk (KERN_ALERT "maXTouch: Info block CRC invalid!\n");
++	}
++	return 0;
++err_max_rid:
++	kfree (mxt->rid_map);
++err_rid_map_alloc:
++err_object_read:
++	kfree (raw_ib_data);
++err_ib_alloc:
++	kfree (object_table);
++err_object_table_alloc:
++	return error;
++}
++
++static void
++mxt_init_pdata(struct mxt_data *mxt)
++{
++	int xrange = mxt->max_x_val;
++	int yrange = mxt->max_y_val;
++
++        mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_NUMTOUCH, mxt->numtouch);
++        mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_BLEN,     0);	// Burst length
++        mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_TCHTHR,   30);	// Threshhold
++	if( mxt->device_info.x_size == 18 && mxt->device_info.y_size == 12 ){
++		// Touch International
++		mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_ORIENT,   MXT_TOUCH_ORIENT_INVERTX);
++	}
++	else if( mxt->device_info.x_size == 16 && mxt->device_info.y_size == 14 ){
++		// Multek
++		mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_ORIENT,   MXT_TOUCH_ORIENT_INVERTY|MXT_TOUCH_ORIENT_SWITCH);
++		xrange = mxt->max_y_val;
++		yrange = mxt->max_x_val;
++	}
++	else{
++		printk( KERN_ALERT "maXTouch: unrecognized display configuration X:%d Y:%d\n",mxt->device_info.x_size,mxt->device_info.y_size);
++	}
++
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_XRANGE_LSB, (xrange-1) & 0xff);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_XRANGE_MSB, (xrange-1) >> 8);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_YRANGE_LSB, (yrange-1) & 0xff);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_YRANGE_MSB, (yrange-1) >> 8);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_CTRL, 0x83);		// Enable touch events
++
++}
++
++static int __devinit
++mxt_probe (struct i2c_client *client, const struct i2c_device_id *id)
++{
++	struct mxt_data *mxt;
++	struct mxt_platform_data *pdata;
++	struct input_dev *input;
++	u8 *id_data;
++	int error;
++
++	if (client == NULL) {
++		pr_debug ("maXTouch: client == NULL\n");
++		return -EINVAL;
++	}
++	else if (client->adapter == NULL) {
++		pr_debug ("maXTouch: client->adapter == NULL\n");
++		return -EINVAL;
++	}
++	else if (&client->dev == NULL) {
++		pr_debug ("maXTouch: client->dev == NULL\n");
++		return -EINVAL;
++	}
++	else if (&client->adapter->dev == NULL) {
++		pr_debug ("maXTouch: client->adapter->dev == NULL\n");
++		return -EINVAL;
++	}
++	else if (id == NULL) {
++		pr_debug ("maXTouch: id == NULL\n");
++		return -EINVAL;
++	}
++	/* Allocate structure - we need it to identify device */
++	mxt = kzalloc (sizeof (struct mxt_data), GFP_KERNEL);
++	if (mxt == NULL) {
++		dev_err (&client->dev, "insufficient memory\n");
++		error = -ENOMEM;
++		goto err_mxt_alloc;
++	}
++	id_data = kmalloc (MXT_ID_BLOCK_SIZE, GFP_KERNEL);
++	if (id_data == NULL) {
++		dev_err (&client->dev, "insufficient memory\n");
++		error = -ENOMEM;
++		goto err_id_alloc;
++	}
++	input = input_allocate_device ();
++	if (!input) {
++		dev_err (&client->dev, "error allocating input device\n");
++		error = -ENOMEM;
++		goto err_input_dev_alloc;
++	}
++	/* Initialize Platform data */
++	pdata = client->dev.platform_data;
++	if (pdata == NULL) {
++		dev_err (&client->dev, "platform data is required!\n");
++		error = -EINVAL;
++		goto err_pdata;
++	}
++	mxt->max_x_val = pdata->max_x;
++	mxt->max_y_val = pdata->max_y;
++	mxt->numtouch = pdata->numtouch;
++	/* Get data that is defined in board specific code. */
++	mxt->init_hw = pdata->init_platform_hw;
++	mxt->exit_hw = pdata->exit_platform_hw;
++	mxt->read_chg = pdata->read_chg;
++	if (pdata->valid_interrupt != NULL)
++		mxt->valid_interrupt = pdata->valid_interrupt;
++	else
++		mxt->valid_interrupt = mxt_valid_interrupt_dummy;
++	if (mxt->init_hw != NULL)
++		mxt->init_hw ();
++	if (mxt_identify (client, mxt, id_data) < 0) {
++		dev_err (&client->dev, "Chip could not be identified\n");
++		error = -ENODEV;
++		goto err_identify;
++	}
++	/* Chip is valid and active. */
++	mxt->client = client;
++	mxt->input = input;
++	INIT_DELAYED_WORK (&mxt->dwork, mxt_worker);
++	snprintf (mxt->phys_name, sizeof (mxt->phys_name), "%s/input0", dev_name (&client->dev));
++	input->name = "Atmel maXTouch Touchscreen controller";
++	input->phys = mxt->phys_name;
++	input->id.bustype = BUS_I2C;
++	input->dev.parent = &client->dev;
++
++	/* Sync events */
++	__set_bit (EV_SYN, input->evbit);
++
++	/* Simulated mouse input */
++	//__set_bit (EV_KEY, input->evbit);
++	//__set_bit (BTN_MOUSE, input->keybit);
++	//__set_bit (BTN_TOUCH, input->keybit);
++
++	/* Single touch */
++	__set_bit (EV_ABS, input->evbit);
++	__set_bit (ABS_X, input->absbit);
++	__set_bit (ABS_Y, input->absbit);
++	__set_bit (ABS_PRESSURE, input->absbit);
++	__set_bit (ABS_TOOL_WIDTH, input->absbit);
++	input_set_abs_params (input, ABS_X,          0, mxt->max_x_val,            0, 0);
++	input_set_abs_params (input, ABS_Y,          0, mxt->max_y_val,            0, 0);
++	input_set_abs_params (input, ABS_PRESSURE,   0, MXT_MAX_REPORTED_PRESSURE, 0, 0);
++	input_set_abs_params (input, ABS_TOOL_WIDTH, 0, MXT_MAX_REPORTED_WIDTH,    0, 0);
++
++	/* Multitouch */
++	__set_bit (ABS_MT_SLOT, input->absbit);
++	__set_bit (ABS_MT_POSITION_X, input->absbit);
++	__set_bit (ABS_MT_POSITION_Y, input->absbit);
++	__set_bit (ABS_MT_TOUCH_MAJOR, input->absbit);
++	__set_bit (ABS_MT_TRACKING_ID, input->absbit);
++	input_set_abs_params (input, ABS_MT_POSITION_X,  0, mxt->max_x_val,        0, 0);
++	input_set_abs_params (input, ABS_MT_POSITION_Y,  0, mxt->max_y_val,        0, 0);
++	input_set_abs_params (input, ABS_MT_TOUCH_MAJOR, 0, MXT_MAX_TOUCH_SIZE,    0, 0);
++	input_set_abs_params (input, ABS_MT_TRACKING_ID, 0, MXT_MAX_NUM_TOUCHES-1, 0, 0);
++
++	/* Gestures */
++	__set_bit (EV_MSC, input->evbit);
++	__set_bit (MSC_GESTURE, input->mscbit);
++
++	dev_info (&client->dev, "Touch params x:%d, y:%d pressure:%d width:%d size:%d num_touches:%d\n",
++			mxt->max_x_val,mxt->max_y_val,MXT_MAX_REPORTED_PRESSURE,MXT_MAX_REPORTED_WIDTH,MXT_MAX_TOUCH_SIZE,MXT_MAX_NUM_TOUCHES);
++
++	i2c_set_clientdata (client, mxt);
++	input_set_drvdata (input, mxt);
++	error = input_register_device (mxt->input);
++	if (error < 0) {
++		dev_err (&client->dev, "Failed to register input device\n");
++		goto err_register_device;
++	}
++	error = mxt_read_object_table (client, mxt, id_data);
++	if (error < 0)
++		goto err_read_ot;
++
++	mxt_init_pdata(mxt);
++	clear_finger_history(mxt);
++
++	/* Create character device nodes for reading & writing registers */
++	mxt->mxt_class = class_create (THIS_MODULE, "maXTouch_memory");
++	if (IS_ERR (mxt->mxt_class)) {
++		printk (KERN_WARNING "class create failed! exiting...");
++		goto err_read_ot;
++	}
++	/* 2 numbers; one for memory and one for messages */
++	error = alloc_chrdev_region (&mxt->dev_num, 0, 2, "maXTouch_memory");
++	if (error)
++		printk (KERN_WARNING "Error registering device\n");
++	cdev_init (&mxt->cdev_messages, &mxt_message_fops);
++	mxt->cdev_messages.owner = THIS_MODULE;
++	error = cdev_add (&mxt->cdev_messages, mxt->dev_num + 1, 1);
++	if (error)
++		printk (KERN_WARNING "Bad cdev\n");
++	device_create (mxt->mxt_class, NULL, MKDEV (MAJOR (mxt->dev_num), 1), NULL, "maXTouch_messages");
++	/* Allocate the interrupt */
++	mxt->irq = client->irq;
++	if (mxt->irq) {
++		/* Try to request IRQ with falling edge first. This is
++		 * not always supported. If it fails, try with any edge. */
++		error = request_irq (mxt->irq, mxt_irq_handler, IRQF_TRIGGER_FALLING, client->dev.driver->name, mxt);
++		if (error < 0) {
++			dev_err (&client->dev, "failed to allocate irq %d\n", mxt->irq);
++			goto err_irq;
++		}
++	}
++	dev_info (&client->dev, "touchscreen, irq %d\n", mxt->irq);
++	/* Schedule a worker routine to read any messages that might have
++	 * been sent before interrupts were enabled. */
++	cancel_delayed_work (&mxt->dwork);
++	schedule_delayed_work (&mxt->dwork, 0);
++	kfree (id_data);
++	return 0;
++err_irq:
++	kfree (mxt->rid_map);
++	kfree (mxt->object_table);
++err_read_ot:
++err_register_device:
++err_identify:
++err_pdata:
++	input_free_device (input);
++err_input_dev_alloc:
++	kfree (id_data);
++err_id_alloc:
++	if (mxt->exit_hw != NULL)
++		mxt->exit_hw ();
++	kfree (mxt);
++err_mxt_alloc:
++	return error;
++}
++
++static int __devexit
++mxt_remove (struct i2c_client *client)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++
++	/* Remove debug dir entries */
++	if (mxt != NULL) {
++		if (mxt->exit_hw != NULL)
++			mxt->exit_hw ();
++		if (mxt->irq)
++			free_irq (mxt->irq, mxt);
++		unregister_chrdev_region (mxt->dev_num, 2);
++		device_destroy (mxt->mxt_class, MKDEV (MAJOR (mxt->dev_num), 0));
++		device_destroy (mxt->mxt_class, MKDEV (MAJOR (mxt->dev_num), 1));
++		cdev_del (&mxt->cdev_messages);
++		cancel_delayed_work_sync (&mxt->dwork);
++		input_unregister_device (mxt->input);
++		class_destroy (mxt->mxt_class);
++		kfree (mxt->rid_map);
++		kfree (mxt->object_table);
++	}
++	kfree (mxt);
++	i2c_set_clientdata (client, NULL);
++	return 0;
++}
++
++#if defined(CONFIG_PM)
++/*
++ * Allow the touchscreen to resume the system from sleep.
++ * Alternatively we could put the maXTouch to deep sleep mode and use
++ * something else to resume.
++ *
++ * TODO: set ACQINT to some high value, and restore to original at resume?
++ */
++static int
++mxt_suspend (struct i2c_client *client, pm_message_t mesg)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++
++	if (device_may_wakeup (&client->dev))
++		enable_irq_wake (mxt->irq);
++	return 0;
++}
++
++static int
++mxt_resume (struct i2c_client *client)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++
++	if (device_may_wakeup (&client->dev))
++		disable_irq_wake (mxt->irq);
++	return 0;
++}
++#else
++#define mxt_suspend NULL
++#define mxt_resume NULL
++#endif
++
++static const struct i2c_device_id mxt_idtable[] = {
++	{"maXTouch", 0,},
++	{}
++};
++MODULE_DEVICE_TABLE (i2c, mxt_idtable);
++
++static struct i2c_driver mxt_driver = {
++	.driver = {
++		   .name = "maXTouch",
++		   .owner = THIS_MODULE,
++		   },
++	.id_table = mxt_idtable,
++	.probe = mxt_probe,
++	.remove = __devexit_p (mxt_remove),
++	.suspend = mxt_suspend,
++	.resume = mxt_resume,
++};
++
++static int __init
++mxt_init (void)
++{
++	int err;
++
++	err = i2c_add_driver (&mxt_driver);
++	if (err)
++		printk ("Adding maXTouch driver failed " "(errno = %d)\n", err);
++	return err;
++}
++
++static void __exit
++mxt_cleanup (void)
++{
++	i2c_del_driver (&mxt_driver);
++}
++
++module_init (mxt_init);
++module_exit (mxt_cleanup);
++MODULE_AUTHOR ("Iiro Valkonen");
++MODULE_DESCRIPTION ("Driver for Atmel maXTouch Touchscreen Controller");
++MODULE_LICENSE ("GPL");
+diff --git a/drivers/input/touchscreen/atmel_maxtouch.fromlifesize b/drivers/input/touchscreen/atmel_maxtouch.fromlifesize
+new file mode 100644
+index 0000000..aa933f9
+--- /dev/null
++++ b/drivers/input/touchscreen/atmel_maxtouch.fromlifesize
+@@ -0,0 +1,1119 @@
++/*
++ *  Atmel maXTouch Touchscreen Controller Driver
++ *
++ *
++ *  Copyright (C) 2010 Atmel Corporation
++ *  Copyright (C) 2010 Ulf Samuelsson (ulf@atmel.com)
++ *  Copyright (C) 2009 Raphael Derosso Pereira <raphaelpereira@gmail.com>
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation; either version 2 of the License, or
++ *  (at your option) any later version.
++ *
++ *  This program is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with this program; if not, write to the Free Software
++ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++/*
++ *
++ * Driver for Atmel maXTouch family of touch controllers.
++ *
++ */
++#include <linux/i2c.h>
++#include <linux/interrupt.h>
++#include <linux/input.h>
++#include <linux/cdev.h>
++#include <linux/mutex.h>
++#include <linux/slab.h>
++#include <linux/uaccess.h>
++#include <linux/wait.h>
++#include <linux/sched.h>
++#include <linux/atmel_maxtouch.h>
++
++/* MXT_TOUCH_MULTI field */
++#define MXT_TOUCH_CTRL		0
++#define MXT_TOUCH_XORIGIN	1
++#define MXT_TOUCH_YORIGIN	2
++#define MXT_TOUCH_XSIZE		3
++#define MXT_TOUCH_YSIZE		4
++#define MXT_TOUCH_BLEN		6
++#define MXT_TOUCH_TCHTHR	7
++#define MXT_TOUCH_TCHDI		8
++#define MXT_TOUCH_ORIENT	9
++#define		MXT_TOUCH_ORIENT_INVERTY	0x4
++#define		MXT_TOUCH_ORIENT_INVERTX	0x2
++#define		MXT_TOUCH_ORIENT_SWITCH		0x1
++#define MXT_TOUCH_MOVHYSTI	11
++#define MXT_TOUCH_MOVHYSTN	12
++#define MXT_TOUCH_NUMTOUCH	14
++#define MXT_TOUCH_MRGHYST	15
++#define MXT_TOUCH_MRGTHR	16
++#define MXT_TOUCH_AMPHYST	17
++#define MXT_TOUCH_XRANGE_LSB	18
++#define MXT_TOUCH_XRANGE_MSB	19
++#define MXT_TOUCH_YRANGE_LSB	20
++#define MXT_TOUCH_YRANGE_MSB	21
++#define MXT_TOUCH_XLOCLIP	22
++#define MXT_TOUCH_XHICLIP	23
++#define MXT_TOUCH_YLOCLIP	24
++#define MXT_TOUCH_YHICLIP	25
++#define MXT_TOUCH_XEDGECTRL	26
++#define MXT_TOUCH_XEDGEDIST	27
++#define MXT_TOUCH_YEDGECTRL	28
++#define MXT_TOUCH_YEDGEDIST	29
++#define MXT_TOUCH_JUMPLIMIT	30	/* firmware ver 22 over */
++
++#define DRIVER_VERSION "0.92a"
++
++#define I2C_RETRY_COUNT 5
++
++/* Device Info descriptor */
++/* Parsed from maXTouch "Id information" inside device */
++struct mxt_device_info
++{
++	u8 family_id;
++	u8 variant_id;
++	u8 major;
++	u8 minor;
++	u8 build;
++	u8 num_objs;
++	u8 x_size;
++	u8 y_size;
++	char family_name[16];	/* Family name */
++	char variant_name[16];	/* Variant name */
++	u16 num_nodes;		/* Number of sensor nodes */
++};
++
++/* object descriptor table, parsed from maXTouch "object table" */
++struct mxt_object
++{
++	u16 chip_addr;
++	u8 type;
++	u8 size;
++	u8 instances;
++	u8 num_report_ids;
++};
++
++/* Mapping from report id to object type and instance */
++struct report_id_map
++{
++	u8 object;
++	u8 instance;
++/*
++ * This is the first report ID belonging to object. It enables us to
++ * find out easily the touch number: each touch has different report
++ * ID (which are assigned to touches in increasing order). By
++ * subtracting the first report ID from current, we get the touch
++ * number.
++ */
++	u8 first_rid;
++};
++
++/* Driver datastructure */
++struct mxt_data
++{
++	struct i2c_client *client;
++	struct input_dev *input;
++	char phys_name[32];
++	int irq;
++	u16 last_read_addr;
++	int bytes_to_read;
++	struct delayed_work dwork;
++	u8 numtouch;
++	struct mxt_device_info device_info;
++	u32 info_block_crc;
++	u32 configuration_crc;
++	u16 report_id_count;
++	struct report_id_map *rid_map;
++	struct mxt_object *object_table;
++	u16 message_addr;
++	u8 message_size;
++	u16 max_x_val;
++	u16 max_y_val;
++	void (*init_hw) (void);
++	void (*exit_hw) (void);
++	  u8 (*valid_interrupt) (void);
++	  u8 (*read_chg) (void);
++	/* Character device variables */
++	struct cdev cdev_messages;	/* 2nd Char dev for messages */
++	dev_t dev_num;
++	struct class *mxt_class;
++	u8 error_cond;
++	int last_size[MXT_MAX_NUM_TOUCHES];
++	int last_x[MXT_MAX_NUM_TOUCHES];
++	int last_y[MXT_MAX_NUM_TOUCHES];
++	u8 message[256];
++};
++
++
++struct elog {
++	u16 x[MXT_MAX_NUM_TOUCHES];
++	u16 y[MXT_MAX_NUM_TOUCHES];
++};
++
++#define	MAX_ELOG	1024		// maximum number of log entries
++#define	NO_TOUCH	0xFFFF		// finger up
++struct elog Elog[MAX_ELOG];
++unsigned int Elog_in = 0;
++unsigned int Elog_out = 0;
++static DECLARE_WAIT_QUEUE_HEAD(Elog_wait);
++
++static inline void
++add_elog(struct mxt_data *mxt)
++{
++	int f;
++	int enext = Elog_in+1;
++
++	if( enext >= MAX_ELOG )
++		enext = 0;
++	if( enext == Elog_out )
++		return;	// log buffer is full
++	for(f=0;f<MXT_MAX_NUM_TOUCHES;f++){
++		Elog[Elog_in].x[f] = mxt->last_size[f] ? mxt->last_x[f] : NO_TOUCH;
++		Elog[Elog_in].y[f] = mxt->last_size[f] ? mxt->last_y[f] : NO_TOUCH;
++		}
++	Elog_in = enext;
++	wake_up(&Elog_wait);
++}
++
++static inline void
++clear_finger_history(struct mxt_data *mxt)
++{
++	int f;
++
++	for(f=0;f<MXT_MAX_NUM_TOUCHES;f++)
++		mxt->last_size[f] = 0;	// sufficient to mark all fingers as 'up'
++}
++
++static inline void
++report_mt (int finger, int size, int x, int y, struct mxt_data *mxt)
++{
++	struct input_dev *input = mxt->input;
++	int f;
++	int mt_count = 0;
++
++	if( finger < 0 || finger >= MXT_MAX_NUM_TOUCHES )
++		return;
++	if( size==mxt->last_size[finger] && x==mxt->last_x[finger] && y==mxt->last_y[finger] )
++		return;	// don't report duplicates
++	mxt->last_size[finger] = size;
++	mxt->last_x[finger]    = x;
++	mxt->last_y[finger]    = y;
++
++	// report all active touches (type A?)
++	for(f=0;f<MXT_MAX_NUM_TOUCHES;f++)
++		if( mxt->last_size[f] ){
++			//input_mt_slot(input, f);
++			input_report_abs (input, ABS_MT_TRACKING_ID, f);
++			input_report_abs (input, ABS_MT_POSITION_X, mxt->last_x[f]);
++			input_report_abs (input, ABS_MT_POSITION_Y, mxt->last_y[f]);
++			input_mt_sync (input);
++			mt_count++;
++			}
++	if(mt_count==0)input_mt_sync (input);	// if no touches active, send a single mt_sync event
++	input_sync (input);
++	add_elog(mxt);
++}
++
++static inline void
++report_gesture (int event, int dir, int dist, int x, int y, struct mxt_data *mxt)
++{
++#if 0
++	struct input_dev *input = mxt->input;
++	input_event (input, EV_MSC, MSC_GESTURE, (event<<24) | (dir<<16) | dist);
++	input_event (input, EV_MSC, MSC_GESTURE, (x<<16) | y);
++#endif
++}
++
++/* Returns the start address of object in mXT memory. */
++#define MXT_BASE_ADDR(object_type, mxt) get_object_address(object_type, mxt->object_table, mxt->device_info.num_objs)
++
++static u16 get_object_address (uint8_t object_type, struct mxt_object *object_table, int max_objs);
++/* Routines for memory access within a 16 bit address space */
++static int mxt_read_block(struct i2c_client *client, u16 addr, u16 length, u8 *value);
++static int mxt_write_byte(struct i2c_client *client, u16 addr, u8 value);
++
++int
++mxt_message_open (struct inode *inode, struct file *file)
++{
++	struct mxt_data *mxt = container_of (inode->i_cdev, struct mxt_data, cdev_messages);
++
++	if (mxt == NULL)
++		return -EIO;
++	file->private_data = mxt;
++	return 0;
++}
++
++/*
++ * Copies messages from buffer to user space.
++ */
++ssize_t
++mxt_message_read (struct file * file, char *buf, size_t count, loff_t * ppos)
++{
++	struct mxt_data *mxt = file->private_data;
++	int f,maxf;
++	int eidx;
++	char *p = buf;
++        ssize_t retval;
++
++	if (mxt == NULL)
++		return -EIO;
++        if ((Elog_in == Elog_out) && (file->f_flags & O_NONBLOCK))
++                return -EAGAIN;
++        if( (retval = wait_event_interruptible(Elog_wait, Elog_in != Elog_out)) < 0 )
++                return retval;
++
++	while( Elog_in != Elog_out ){
++		eidx = Elog_out;
++		for(maxf=MXT_MAX_NUM_TOUCHES;maxf>1;maxf--)
++			if( Elog[eidx].x[maxf-1] != NO_TOUCH )
++				break;	// found highest numbered 'down' finger
++		if( ((p-buf)+(maxf*8)+1) >= count )
++			break;	// maybe no room for another event
++		for(f=0;f<maxf;f++){
++			if( Elog[eidx].x[f] != NO_TOUCH )
++				p += sprintf(p,"%3d,%-3d ",Elog[eidx].x[f],Elog[eidx].y[f]);
++			else
++				p += sprintf(p,"---,--- ");
++			}
++		p += sprintf(p,"\n");
++		eidx++;
++		if( eidx >= MAX_ELOG )
++			eidx = 0;
++		Elog_out = eidx;
++		}
++	return p - buf;
++}
++
++static const struct file_operations mxt_message_fops = {
++	.owner = THIS_MODULE,
++	.open = mxt_message_open,
++	.read = mxt_message_read,
++};
++
++/* Calculates the 24-bit CRC sum. */
++static u32
++CRC_24 (u32 crc, u8 byte1, u8 byte2)
++{
++	static const u32 crcpoly = 0x80001B;
++	u32 data_word = ((((u16) byte2) << 8u) | byte1);
++	u32 result = ((crc << 1u) ^ data_word);
++
++	if (result & 0x1000000)
++		result ^= crcpoly;
++	return result;
++}
++
++/* Returns object address in mXT chip, or zero if object is not found */
++static u16
++get_object_address (uint8_t object_type, struct mxt_object *object_table, int max_objs)
++{
++	uint8_t i;
++	struct mxt_object *obj;
++
++	for (i = 0; i < max_objs; i++) {
++		obj = &object_table[i];
++		if (obj->type == object_type)
++			return obj->chip_addr;
++	}
++	return 0;
++}
++
++/*
++ * Reads a block of bytes from given address from mXT chip. If we are
++ * reading from message window, and previous read was from message window,
++ * there's no need to write the address pointer: the mXT chip will
++ * automatically set the address pointer back to message window start.
++ */
++static int
++mxt_read_block (struct i2c_client *client, u16 addr, u16 length, u8 * value)
++{
++	struct i2c_adapter *adapter = client->adapter;
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++	struct i2c_msg msg[2];
++	__le16 le_addr;
++
++	if (mxt != NULL) {
++		if ((mxt->last_read_addr == addr) && (addr == mxt->message_addr)) {
++			if (i2c_master_recv (client, value, length) == length)
++				return length;
++			return -EIO;
++		}
++		else {
++			mxt->last_read_addr = addr;
++		}
++	}
++	le_addr = cpu_to_le16 (addr);
++	msg[0].addr = client->addr;
++	msg[0].flags = 0x00;
++	msg[0].len = 2;
++	msg[0].buf = (u8 *) & le_addr;
++	msg[1].addr = client->addr;
++	msg[1].flags = I2C_M_RD;
++	msg[1].len = length;
++	msg[1].buf = (u8 *) value;
++	if (i2c_transfer (adapter, msg, 2) == 2)
++		return length;
++	return -EIO;
++}
++
++/* Writes one byte to given address in mXT chip. */
++static int
++mxt_write_byte (struct i2c_client *client, u16 addr, u8 value)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++	struct {
++		__le16 le_addr;
++		u8 data;
++	} i2c_byte_transfer;
++
++	if (mxt != NULL)
++		mxt->last_read_addr = -1;
++	i2c_byte_transfer.le_addr = cpu_to_le16 (addr);
++	i2c_byte_transfer.data = value;
++	if (i2c_master_send (client, (u8 *) & i2c_byte_transfer, 3) == 3)
++		return 0;
++	return -EIO;
++}
++
++/* Calculates the CRC value for mXT infoblock. */
++int
++calculate_infoblock_crc (u32 * crc_result, u8 * data, int crc_area_size)
++{
++	u32 crc = 0;
++	int i;
++
++	for (i = 0; i < (crc_area_size - 1); i = i + 2)
++		crc = CRC_24 (crc, *(data + i), *(data + i + 1));
++	/* If uneven size, pad with zero */
++	if (crc_area_size & 0x0001)
++		crc = CRC_24 (crc, *(data + i), 0);
++	/* Return only 24 bits of CRC. */
++	*crc_result = (crc & 0x00FFFFFF);
++	return 0;
++}
++
++static inline void
++process_T6_message (u8 * message, struct mxt_data *mxt)
++{
++	struct i2c_client *client = mxt->client;
++	u8 status = message[1];
++
++	if (status & MXT_MSGB_T6_COMSERR) {
++		if (!(mxt->error_cond & MXT_MSGB_T6_COMSERR)) {
++			dev_err (&client->dev, "maXTouch checksum error\n");
++			mxt->error_cond |= MXT_MSGB_T6_COMSERR;
++		}
++	}
++	if (status & MXT_MSGB_T6_CFGERR) {	/* Configuration error */
++		/* A proper configuration needs to be written to chip and backed up */
++		if (!(mxt->error_cond & MXT_MSGB_T6_CFGERR)) {
++			dev_err (&client->dev, "maXTouch configuration error\n");
++			mxt->error_cond |= MXT_MSGB_T6_CFGERR;
++		}
++	}
++	if (status & MXT_MSGB_T6_SIGERR) {	/* Signal acquisition error */
++		/* Something is seriously wrong, not much we can do to correct this */
++		if (!(mxt->error_cond & MXT_MSGB_T6_SIGERR)) {
++			dev_err (&client->dev, "maXTouch acquisition error\n");
++			mxt->error_cond |= MXT_MSGB_T6_SIGERR;
++		}
++	}
++	if (status & MXT_MSGB_T6_OFL)	/* Cycle overflow, the acquisition interval is too short. */
++		dev_err (&client->dev, "maXTouch cycle overflow\n");
++	if (status & MXT_MSGB_T6_CAL)	/* Calibration in progress */
++		dev_info (&client->dev, "maXTouch calibration in progress\n");
++	if (status & MXT_MSGB_T6_RESET)	/* Chip has reset */
++		dev_info (&client->dev, "maXTouch chip reset\n");
++
++	if (status == 0) { /* Chip status back to normal. */
++		dev_info (&client->dev, "maXTouch status normal\n");
++		mxt->error_cond = 0;
++	}
++	clear_finger_history(mxt);	// any T6 event causes us to forget all previous multi-touch history
++}
++
++/* Processes a touchscreen message. */
++static inline void
++process_T9_message (u8 * message, struct mxt_data *mxt)
++{
++	unsigned int status     = message[MXT_MSG_T9_STATUS];
++	unsigned int x          = message[MXT_MSG_T9_XPOSMSB] * 16 + ((message[MXT_MSG_T9_XYPOSLSB] >> 4) & 0xF);
++	unsigned int y          = message[MXT_MSG_T9_YPOSMSB] * 16 + ((message[MXT_MSG_T9_XYPOSLSB] >> 0) & 0xF);
++	//unsigned int size       = message[MXT_MSG_T9_TCHAREA] >> 2;
++	unsigned int report_id  = message[MXT_MSG_T9_ID];
++	unsigned int finger     = message[MXT_MSG_REPORTID] - mxt->rid_map[report_id].first_rid;
++
++	/* Adjust from 12-bit to 10-bit depending on size of display */
++	if (mxt->max_x_val < 1024) x >>= 2;
++	if (mxt->max_y_val < 1024) y >>= 2;
++
++	if (status & MXT_MSGB_T9_PRESS)
++		report_mt (finger, 1, x, y, mxt);
++	if (status & MXT_MSGB_T9_MOVE)
++		report_mt (finger, 1, x, y, mxt);
++	if (status & MXT_MSGB_T9_RELEASE)	/* The previously reported touch has been removed. */
++		report_mt (finger, 0, x, y, mxt);
++}
++
++static inline void
++process_T24_message (u8 * message, struct mxt_data *mxt)
++{
++#if 0
++	unsigned int event      = message[MXT_MSG_T24_STATUS] & 0x0F;	// lower 4 bits are one-gesture type
++	unsigned int x          = message[MXT_MSG_T24_XPOSMSB] * 16 + ((message[MXT_MSG_T24_XYPOSLSB] >> 4) & 0xF);
++	unsigned int y          = message[MXT_MSG_T24_YPOSMSB] * 16 + ((message[MXT_MSG_T24_XYPOSLSB] >> 0) & 0xF);
++	unsigned int dir        = message[MXT_MSG_T24_DIR];
++	unsigned int dist       = message[MXT_MSG_T24_DIST] + (message[MXT_MSG_T24_DIST+1] << 8);
++
++	/* Adjust from 12-bit to 10-bit depending on size of display */
++	if (mxt->max_x_val < 1024) x >>= 2;
++	if (mxt->max_y_val < 1024) y >>= 2;
++
++	report_gesture(event,dir,dist,x,y,mxt);
++#endif
++}
++
++static inline void
++process_T25_message (u8 * message, struct mxt_data *mxt)
++{
++	struct i2c_client *client = mxt->client;
++	u8 status = message[MXT_MSG_T25_STATUS];
++
++	if (status != MXT_MSGR_T25_OK)
++		dev_err (&client->dev, "maXTouch: Self-Test Failed %02x {%02x,%02x,%02x,%02x,%02x}\n", status,
++			message[MXT_MSG_T25_INFO+0],
++			message[MXT_MSG_T25_INFO+1],
++			message[MXT_MSG_T25_INFO+2],
++			message[MXT_MSG_T25_INFO+3],
++			message[MXT_MSG_T25_INFO+4]);
++}
++
++static inline void
++process_T27_message (u8 * message, struct mxt_data *mxt)
++{
++#if 0
++	unsigned int event      = message[MXT_MSG_T27_STATUS] & 0xF0;	// upper 4 bits are two-gesture flags
++	unsigned int x          = message[MXT_MSG_T27_XPOSMSB] * 16 + ((message[MXT_MSG_T27_XYPOSLSB] >> 4) & 0xF);
++	unsigned int y          = message[MXT_MSG_T27_YPOSMSB] * 16 + ((message[MXT_MSG_T27_XYPOSLSB] >> 0) & 0xF);
++	unsigned int dir        = message[MXT_MSG_T27_ANGLE];
++	unsigned int dist       = message[MXT_MSG_T27_SEPARATION] + (message[MXT_MSG_T27_SEPARATION+1] << 8);
++
++	/* Adjust from 12-bit to 10-bit depending on size of display */
++	if (mxt->max_x_val < 1024) x >>= 2;
++	if (mxt->max_y_val < 1024) y >>= 2;
++
++	report_gesture(event,dir,dist,x,y,mxt);
++#endif
++}
++
++static inline void
++process_T28_message (u8 * message, struct mxt_data *mxt)
++{
++	struct i2c_client *client = mxt->client;
++	u8 status = message[MXT_MSG_T28_STATUS];
++
++	if (status & MXT_MSGB_T28_CHKERR)
++		dev_err (&client->dev, "maXTouch: Power-Up CRC failure\n");
++}
++
++int
++process_message (u8 * message, u8 object, struct mxt_data *mxt)
++{
++	switch (object) {
++	case MXT_GEN_COMMANDPROCESSOR_T6:		process_T6_message(message, mxt);	break;
++	case MXT_TOUCH_MULTITOUCHSCREEN_T9:		process_T9_message(message, mxt);	break;
++	case MXT_SPT_GPIOPWM_T19:								break;
++	case MXT_PROCI_GRIPFACESUPPRESSION_T20:							break;
++	case MXT_PROCG_NOISESUPPRESSION_T22:							break;
++	case MXT_PROCI_ONETOUCHGESTUREPROCESSOR_T24:	process_T24_message(message, mxt);	break;
++	case MXT_SPT_SELFTEST_T25:			process_T25_message(message, mxt);	break;
++	case MXT_PROCI_TWOTOUCHGESTUREPROCESSOR_T27:	process_T27_message(message, mxt);	break;
++	case MXT_SPT_CTECONFIG_T28:			process_T28_message(message, mxt);	break;
++	default:
++		break;
++	}
++	return 0;
++}
++
++/*
++ * Processes messages when the interrupt line (CHG) is asserted. Keeps
++ * reading messages until CHG is not asserted which indicates that there are no more new messages.
++ */
++static void
++mxt_worker (struct work_struct *work)
++{
++	struct mxt_data *mxt = container_of (work, struct mxt_data, dwork.work);
++	struct i2c_client *client = mxt->client;
++	u8 report_id;
++	int i;
++
++	disable_irq (mxt->irq);
++	do {
++		/* Read next message, reread on failure. */
++		for (i = 0; i < I2C_RETRY_COUNT; i++) {
++			if( mxt_read_block (client, mxt->message_addr, mxt->message_size, mxt->message) >= 0 )
++				break;
++		}
++		if (i == I2C_RETRY_COUNT ){
++			dev_err (&client->dev, "Failure reading maxTouch device\n");
++			break;
++		}
++		report_id = mxt->message[0];
++		if ((report_id != MXT_END_OF_MESSAGES) && (report_id != 0))
++			process_message (mxt->message, mxt->rid_map[report_id].object, mxt);
++	} while ( mxt->read_chg () == 0 );
++	enable_irq (mxt->irq);
++	/* Make sure we just didn't miss a interrupt. */
++	if (mxt->read_chg () == 0)
++		schedule_delayed_work (&mxt->dwork, 0);
++}
++
++/*
++ * The maXTouch device will signal the host about a new message by asserting
++ * the CHG line. This ISR schedules a worker routine to read the message when
++ * that happens.
++ */
++static irqreturn_t
++mxt_irq_handler (int irq, void *_mxt)
++{
++	struct mxt_data *mxt = _mxt;
++
++	if (mxt->valid_interrupt ()) {
++		cancel_delayed_work (&mxt->dwork);
++		schedule_delayed_work (&mxt->dwork, 0);
++		return IRQ_HANDLED;
++	}
++	return IRQ_NONE;
++}
++
++/******************************************************************************/
++/* Initialization of driver                                                   */
++/******************************************************************************/
++static int __devinit
++mxt_identify (struct i2c_client *client, struct mxt_data *mxt, u8 * id_block_data)
++{
++	int identified = 0;
++	int error;
++	u8 buf[MXT_ID_BLOCK_SIZE];
++
++	/* Read Device info to check if chip is valid */
++	error = mxt_read_block (client, MXT_ADDR_INFO_BLOCK, MXT_ID_BLOCK_SIZE, (u8 *) buf);
++	if (error < 0) {
++		dev_err (&client->dev, "Failure accessing maXTouch device\n");
++		return -EIO;
++	}
++	memcpy (id_block_data, buf, MXT_ID_BLOCK_SIZE);
++	mxt->device_info.family_id = buf[0];
++	mxt->device_info.variant_id = buf[1];
++	mxt->device_info.major = ((buf[2] >> 4) & 0x0F);
++	mxt->device_info.minor = (buf[2] & 0x0F);
++	mxt->device_info.build = buf[3];
++	mxt->device_info.x_size = buf[4];
++	mxt->device_info.y_size = buf[5];
++	mxt->device_info.num_objs = buf[6];
++	mxt->device_info.num_nodes = mxt->device_info.x_size * mxt->device_info.y_size;
++	/*
++	 * Check Family & Variant Info; warn if not recognized but
++	 * still continue.
++	 */
++	/* MXT224 */
++	if (mxt->device_info.family_id == MXT224_FAMILYID) {
++		strcpy (mxt->device_info.family_name, "mXT224");
++		if (mxt->device_info.variant_id == MXT224_CAL_VARIANTID) {
++			strcpy (mxt->device_info.variant_name, "Calibrated");
++		}
++		else if (mxt->device_info.variant_id == MXT224_UNCAL_VARIANTID) {
++			strcpy (mxt->device_info.variant_name, "Uncalibrated");
++		}
++		else {
++			dev_err (&client->dev, "Warning: maXTouch Variant ID [%d] not " "supported\n", mxt->device_info.variant_id);
++			strcpy (mxt->device_info.variant_name, "UNKNOWN");
++			/* identified = -ENXIO; */
++		}
++		/* MXT1386 */
++	}
++	else if (mxt->device_info.family_id == MXT1386_FAMILYID) {
++		strcpy (mxt->device_info.family_name, "mXT1386");
++		if (mxt->device_info.variant_id == MXT1386_CAL_VARIANTID) {
++			strcpy (mxt->device_info.variant_name, "Calibrated");
++		}
++		else {
++			dev_err (&client->dev, "Warning: maXTouch Variant ID [%d] not " "supported\n", mxt->device_info.variant_id);
++			strcpy (mxt->device_info.variant_name, "UNKNOWN");
++			/* identified = -ENXIO; */
++		}
++		/* Unknown family ID! */
++	}
++	else {
++		dev_err (&client->dev, "Warning: maXTouch Family ID [%d] not supported\n", mxt->device_info.family_id);
++		strcpy (mxt->device_info.family_name, "UNKNOWN");
++		strcpy (mxt->device_info.variant_name, "UNKNOWN");
++		/* identified = -ENXIO; */
++	}
++	dev_info (&client->dev, "Atmel maXTouch (Family %s (%X), Variant %s (%X)) Firmware version [%d.%d] Build %d\n",
++		mxt->device_info.family_name, mxt->device_info.family_id, mxt->device_info.variant_name, mxt->device_info.variant_id,
++		mxt->device_info.major, mxt->device_info.minor, mxt->device_info.build);
++	dev_info (&client->dev, "Atmel maXTouch Configuration " "[X: %d] x [Y: %d] NUM_OBJECTS: %d\n",
++		mxt->device_info.x_size, mxt->device_info.y_size,mxt->device_info.num_objs);
++	return identified;
++}
++
++/*
++ * Reads the object table from maXTouch chip to get object data like
++ * address, size, report id. For Info Block CRC calculation, already read
++ * id data is passed to this function too (Info Block consists of the ID
++ * block and object table).
++ *
++ */
++static int __devinit
++mxt_read_object_table (struct i2c_client *client, struct mxt_data *mxt, u8 * raw_id_data)
++{
++	u16 report_id_count;
++	u8 buf[MXT_OBJECT_TABLE_ELEMENT_SIZE];
++	u8 *raw_ib_data;
++	u8 object_type;
++	u16 object_address;
++	u16 object_size;
++	u8 object_instances;
++	u8 object_report_ids;
++	u16 object_info_address;
++	u32 crc;
++	u32 calculated_crc;
++	int i;
++	int error;
++	u8 object_instance;
++	u8 object_report_id;
++	u8 report_id;
++	int first_report_id;
++	int ib_pointer;
++	struct mxt_object *object_table;
++
++	object_table = kzalloc (sizeof (struct mxt_object) * mxt->device_info.num_objs, GFP_KERNEL);
++	if (object_table == NULL) {
++		printk (KERN_WARNING "maXTouch: Memory allocation failed!\n");
++		error = -ENOMEM;
++		goto err_object_table_alloc;
++	}
++	raw_ib_data = kmalloc (MXT_OBJECT_TABLE_ELEMENT_SIZE * mxt->device_info.num_objs + MXT_ID_BLOCK_SIZE, GFP_KERNEL);
++	if (raw_ib_data == NULL) {
++		printk (KERN_WARNING "maXTouch: Memory allocation failed!\n");
++		error = -ENOMEM;
++		goto err_ib_alloc;
++	}
++	/* Copy the ID data for CRC calculation. */
++	memcpy (raw_ib_data, raw_id_data, MXT_ID_BLOCK_SIZE);
++	ib_pointer = MXT_ID_BLOCK_SIZE;
++	mxt->object_table = object_table;
++	object_info_address = MXT_ADDR_OBJECT_TABLE;
++	report_id_count = 0;
++	for (i = 0; i < mxt->device_info.num_objs; i++) {
++		error = mxt_read_block (client, object_info_address, MXT_OBJECT_TABLE_ELEMENT_SIZE, buf);
++		if (error < 0) {
++			dev_err (&client->dev, "maXTouch Object %d could not be read\n", i);
++			error = -EIO;
++			goto err_object_read;
++		}
++		memcpy (raw_ib_data + ib_pointer, buf, MXT_OBJECT_TABLE_ELEMENT_SIZE);
++		ib_pointer += MXT_OBJECT_TABLE_ELEMENT_SIZE;
++		object_type = buf[0];
++		object_address = (buf[2] << 8) + buf[1];
++		object_size = buf[3] + 1;
++		object_instances = buf[4] + 1;
++		object_report_ids = buf[5];
++		/* Save frequently needed info. */
++		if (object_type == MXT_GEN_MESSAGEPROCESSOR_T5) {
++			mxt->message_addr = object_address;
++			mxt->message_size = object_size;
++			if (mxt->message_size >= 256) {
++				dev_err (&client->dev, "Message length larger than 256 bytes not supported\n");
++				error = -EIO;
++				goto err_object_read;
++			}
++		}
++		object_table[i].type = object_type;
++		object_table[i].chip_addr = object_address;
++		object_table[i].size = object_size;
++		object_table[i].instances = object_instances;
++		object_table[i].num_report_ids = object_report_ids;
++		report_id_count += object_instances * object_report_ids;
++		object_info_address += MXT_OBJECT_TABLE_ELEMENT_SIZE;
++	}
++	mxt->rid_map = kzalloc (sizeof (struct report_id_map) * (report_id_count + 1),
++				/* allocate for report_id 0, even if not used */
++				GFP_KERNEL);
++	if (mxt->rid_map == NULL) {
++		printk (KERN_WARNING "maXTouch: Can't allocate memory!\n");
++		error = -ENOMEM;
++		goto err_rid_map_alloc;
++	}
++	mxt->report_id_count = report_id_count;
++	if (report_id_count > 254) {	/* 0 & 255 are reserved */
++		dev_err (&client->dev, "Too many maXTouch report id's [%d]\n", report_id_count);
++		error = -ENXIO;
++		goto err_max_rid;
++	}
++	/* Create a mapping from report id to object type */
++	report_id = 1;		/* Start from 1, 0 is reserved. */
++	/* Create table associating report id's with objects & instances */
++	for (i = 0; i < mxt->device_info.num_objs; i++) {
++		for (object_instance = 0; object_instance < object_table[i].instances; object_instance++) {
++			first_report_id = report_id;
++			for (object_report_id = 0; object_report_id < object_table[i].num_report_ids; object_report_id++) {
++				mxt->rid_map[report_id].object = object_table[i].type;
++				mxt->rid_map[report_id].instance = object_instance;
++				mxt->rid_map[report_id].first_rid = first_report_id;
++				report_id++;
++			}
++		}
++	}
++	/* Read 3 byte CRC */
++	error = mxt_read_block (client, object_info_address, 3, buf);
++	if (error < 0) {
++		dev_err (&client->dev, "Error reading CRC\n");
++	}
++	crc = (buf[2] << 16) | (buf[1] << 8) | buf[0];
++	if (calculate_infoblock_crc (&calculated_crc, raw_ib_data, ib_pointer)) {
++		printk (KERN_WARNING "Error while calculating CRC!\n");
++		calculated_crc = 0;
++	}
++	kfree (raw_ib_data);
++	if (crc == calculated_crc) {
++		mxt->info_block_crc = crc;
++	}
++	else {
++		mxt->info_block_crc = 0;
++		printk (KERN_ALERT "maXTouch: Info block CRC invalid!\n");
++	}
++	return 0;
++err_max_rid:
++	kfree (mxt->rid_map);
++err_rid_map_alloc:
++err_object_read:
++	kfree (raw_ib_data);
++err_ib_alloc:
++	kfree (object_table);
++err_object_table_alloc:
++	return error;
++}
++
++static void
++mxt_init_pdata(struct mxt_data *mxt)
++{
++	int xrange = mxt->max_x_val;
++	int yrange = mxt->max_y_val;
++
++        mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_NUMTOUCH, mxt->numtouch);
++        mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_BLEN,     0);	// Burst length
++        mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_TCHTHR,   30);	// Threshhold
++	if( mxt->device_info.x_size == 18 && mxt->device_info.y_size == 12 ){
++		// Touch International
++		mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_ORIENT,   MXT_TOUCH_ORIENT_INVERTY);
++	}
++	else if( mxt->device_info.x_size == 16 && mxt->device_info.y_size == 14 ){
++		// Multek
++		mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_ORIENT,   MXT_TOUCH_ORIENT_INVERTX|MXT_TOUCH_ORIENT_SWITCH);
++		xrange = mxt->max_y_val;
++		yrange = mxt->max_x_val;
++	}
++	else{
++		printk( KERN_ALERT "maXTouch: unrecognized display configuration X:%d Y:%d\n",mxt->device_info.x_size,mxt->device_info.y_size);
++	}
++
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_XRANGE_LSB, (xrange-1) & 0xff);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_XRANGE_MSB, (xrange-1) >> 8);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_YRANGE_LSB, (yrange-1) & 0xff);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_YRANGE_MSB, (yrange-1) >> 8);
++	mxt_write_byte(mxt->client, MXT_BASE_ADDR(MXT_TOUCH_MULTITOUCHSCREEN_T9, mxt) + MXT_TOUCH_CTRL, 0x83);		// Enable touch events
++}
++
++static int __devinit
++mxt_probe (struct i2c_client *client, const struct i2c_device_id *id)
++{
++	struct mxt_data *mxt;
++	struct mxt_platform_data *pdata;
++	struct input_dev *input;
++	u8 *id_data;
++	int error;
++
++	if (client == NULL) {
++		pr_debug ("maXTouch: client == NULL\n");
++		return -EINVAL;
++	}
++	else if (client->adapter == NULL) {
++		pr_debug ("maXTouch: client->adapter == NULL\n");
++		return -EINVAL;
++	}
++	else if (&client->dev == NULL) {
++		pr_debug ("maXTouch: client->dev == NULL\n");
++		return -EINVAL;
++	}
++	else if (&client->adapter->dev == NULL) {
++		pr_debug ("maXTouch: client->adapter->dev == NULL\n");
++		return -EINVAL;
++	}
++	else if (id == NULL) {
++		pr_debug ("maXTouch: id == NULL\n");
++		return -EINVAL;
++	}
++	/* Allocate structure - we need it to identify device */
++	mxt = kzalloc (sizeof (struct mxt_data), GFP_KERNEL);
++	if (mxt == NULL) {
++		dev_err (&client->dev, "insufficient memory\n");
++		error = -ENOMEM;
++		goto err_mxt_alloc;
++	}
++	id_data = kmalloc (MXT_ID_BLOCK_SIZE, GFP_KERNEL);
++	if (id_data == NULL) {
++		dev_err (&client->dev, "insufficient memory\n");
++		error = -ENOMEM;
++		goto err_id_alloc;
++	}
++	input = input_allocate_device ();
++	if (!input) {
++		dev_err (&client->dev, "error allocating input device\n");
++		error = -ENOMEM;
++		goto err_input_dev_alloc;
++	}
++	/* Initialize Platform data */
++	pdata = client->dev.platform_data;
++	if (pdata == NULL) {
++		dev_err (&client->dev, "platform data is required!\n");
++		error = -EINVAL;
++		goto err_pdata;
++	}
++	mxt->max_x_val = pdata->max_x;
++	mxt->max_y_val = pdata->max_y;
++	mxt->numtouch = pdata->numtouch;
++	/* Get data that is defined in board specific code. */
++	mxt->init_hw = pdata->init_platform_hw;
++	mxt->exit_hw = pdata->exit_platform_hw;
++	mxt->read_chg = pdata->read_chg;
++	if (pdata->valid_interrupt != NULL)
++		mxt->valid_interrupt = pdata->valid_interrupt;
++	else
++		mxt->valid_interrupt = mxt_valid_interrupt_dummy;
++	if (mxt->init_hw != NULL)
++		mxt->init_hw ();
++	if (mxt_identify (client, mxt, id_data) < 0) {
++		dev_err (&client->dev, "Chip could not be identified\n");
++		error = -ENODEV;
++		goto err_identify;
++	}
++	/* Chip is valid and active. */
++	mxt->client = client;
++	mxt->input = input;
++	INIT_DELAYED_WORK (&mxt->dwork, mxt_worker);
++	snprintf (mxt->phys_name, sizeof (mxt->phys_name), "%s/input0", dev_name (&client->dev));
++	input->name = "Atmel maXTouch Touchscreen controller";
++	input->phys = mxt->phys_name;
++	input->id.bustype = BUS_I2C;
++	input->dev.parent = &client->dev;
++
++	/* Sync events */
++	__set_bit (EV_SYN, input->evbit);
++
++	/* Simulated mouse input */
++	//__set_bit (EV_KEY, input->evbit);
++	//__set_bit (BTN_MOUSE, input->keybit);
++	//__set_bit (BTN_TOUCH, input->keybit);
++
++	/* Single touch */
++	__set_bit (EV_ABS, input->evbit);
++	__set_bit (ABS_X, input->absbit);
++	__set_bit (ABS_Y, input->absbit);
++	__set_bit (ABS_PRESSURE, input->absbit);
++	__set_bit (ABS_TOOL_WIDTH, input->absbit);
++	input_set_abs_params (input, ABS_X,          0, mxt->max_x_val,            0, 0);
++	input_set_abs_params (input, ABS_Y,          0, mxt->max_y_val,            0, 0);
++	input_set_abs_params (input, ABS_PRESSURE,   0, MXT_MAX_REPORTED_PRESSURE, 0, 0);
++	input_set_abs_params (input, ABS_TOOL_WIDTH, 0, MXT_MAX_REPORTED_WIDTH,    0, 0);
++
++	/* Multitouch */
++	__set_bit (ABS_MT_SLOT, input->absbit);
++	__set_bit (ABS_MT_POSITION_X, input->absbit);
++	__set_bit (ABS_MT_POSITION_Y, input->absbit);
++	__set_bit (ABS_MT_TOUCH_MAJOR, input->absbit);
++	__set_bit (ABS_MT_TRACKING_ID, input->absbit);
++	input_set_abs_params (input, ABS_MT_POSITION_X,  0, mxt->max_x_val,        0, 0);
++	input_set_abs_params (input, ABS_MT_POSITION_Y,  0, mxt->max_y_val,        0, 0);
++	input_set_abs_params (input, ABS_MT_TOUCH_MAJOR, 0, MXT_MAX_TOUCH_SIZE,    0, 0);
++	input_set_abs_params (input, ABS_MT_TRACKING_ID, 0, MXT_MAX_NUM_TOUCHES-1, 0, 0);
++
++	/* Gestures */
++	//__set_bit (EV_MSC, input->evbit);
++	//__set_bit (MSC_GESTURE, input->mscbit);
++
++	dev_info (&client->dev, "Touch params x:%d, y:%d pressure:%d width:%d size:%d num_touches:%d\n",
++			mxt->max_x_val,mxt->max_y_val,MXT_MAX_REPORTED_PRESSURE,MXT_MAX_REPORTED_WIDTH,MXT_MAX_TOUCH_SIZE,MXT_MAX_NUM_TOUCHES);
++
++	i2c_set_clientdata (client, mxt);
++	input_set_drvdata (input, mxt);
++	error = input_register_device (mxt->input);
++	if (error < 0) {
++		dev_err (&client->dev, "Failed to register input device\n");
++		goto err_register_device;
++	}
++	error = mxt_read_object_table (client, mxt, id_data);
++	if (error < 0)
++		goto err_read_ot;
++
++	mxt_init_pdata(mxt);
++	clear_finger_history(mxt);
++
++	/* Create character device nodes for reading & writing registers */
++	mxt->mxt_class = class_create (THIS_MODULE, "maXTouch_memory");
++	if (IS_ERR (mxt->mxt_class)) {
++		printk (KERN_WARNING "class create failed! exiting...");
++		goto err_read_ot;
++	}
++	/* 2 numbers; one for memory and one for messages */
++	error = alloc_chrdev_region (&mxt->dev_num, 0, 2, "maXTouch_memory");
++	if (error)
++		printk (KERN_WARNING "Error registering device\n");
++	cdev_init (&mxt->cdev_messages, &mxt_message_fops);
++	mxt->cdev_messages.owner = THIS_MODULE;
++	error = cdev_add (&mxt->cdev_messages, mxt->dev_num + 1, 1);
++	if (error)
++		printk (KERN_WARNING "Bad cdev\n");
++	device_create (mxt->mxt_class, NULL, MKDEV (MAJOR (mxt->dev_num), 1), NULL, "maXTouch_messages");
++	/* Allocate the interrupt */
++	mxt->irq = client->irq;
++	if (mxt->irq) {
++		/* Try to request IRQ with falling edge first. This is
++		 * not always supported. If it fails, try with any edge. */
++		error = request_irq (mxt->irq, mxt_irq_handler, IRQF_TRIGGER_FALLING, client->dev.driver->name, mxt);
++		if (error < 0) {
++			dev_err (&client->dev, "failed to allocate irq %d\n", mxt->irq);
++			goto err_irq;
++		}
++	}
++	dev_info (&client->dev, "touchscreen, irq %d\n", mxt->irq);
++	/* Schedule a worker routine to read any messages that might have
++	 * been sent before interrupts were enabled. */
++	cancel_delayed_work (&mxt->dwork);
++	schedule_delayed_work (&mxt->dwork, 0);
++	kfree (id_data);
++	return 0;
++err_irq:
++	kfree (mxt->rid_map);
++	kfree (mxt->object_table);
++err_read_ot:
++err_register_device:
++err_identify:
++err_pdata:
++	input_free_device (input);
++err_input_dev_alloc:
++	kfree (id_data);
++err_id_alloc:
++	if (mxt->exit_hw != NULL)
++		mxt->exit_hw ();
++	kfree (mxt);
++err_mxt_alloc:
++	return error;
++}
++
++static int __devexit
++mxt_remove (struct i2c_client *client)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++
++	/* Remove debug dir entries */
++	if (mxt != NULL) {
++		if (mxt->exit_hw != NULL)
++			mxt->exit_hw ();
++		if (mxt->irq)
++			free_irq (mxt->irq, mxt);
++		unregister_chrdev_region (mxt->dev_num, 2);
++		device_destroy (mxt->mxt_class, MKDEV (MAJOR (mxt->dev_num), 0));
++		device_destroy (mxt->mxt_class, MKDEV (MAJOR (mxt->dev_num), 1));
++		cdev_del (&mxt->cdev_messages);
++		cancel_delayed_work_sync (&mxt->dwork);
++		input_unregister_device (mxt->input);
++		class_destroy (mxt->mxt_class);
++		kfree (mxt->rid_map);
++		kfree (mxt->object_table);
++	}
++	kfree (mxt);
++	i2c_set_clientdata (client, NULL);
++	return 0;
++}
++
++#if defined(CONFIG_PM)
++/*
++ * Allow the touchscreen to resume the system from sleep.
++ * Alternatively we could put the maXTouch to deep sleep mode and use
++ * something else to resume.
++ *
++ * TODO: set ACQINT to some high value, and restore to original at resume?
++ */
++static int
++mxt_suspend (struct i2c_client *client, pm_message_t mesg)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++
++	if (device_may_wakeup (&client->dev))
++		enable_irq_wake (mxt->irq);
++	return 0;
++}
++
++static int
++mxt_resume (struct i2c_client *client)
++{
++	struct mxt_data *mxt = i2c_get_clientdata (client);
++
++	if (device_may_wakeup (&client->dev))
++		disable_irq_wake (mxt->irq);
++	return 0;
++}
++#else
++#define mxt_suspend NULL
++#define mxt_resume NULL
++#endif
++
++static const struct i2c_device_id mxt_idtable[] = {
++	{"maXTouch", 0,},
++	{}
++};
++MODULE_DEVICE_TABLE (i2c, mxt_idtable);
++
++static struct i2c_driver mxt_driver = {
++	.driver = {
++		   .name = "maXTouch",
++		   .owner = THIS_MODULE,
++		   },
++	.id_table = mxt_idtable,
++	.probe = mxt_probe,
++	.remove = __devexit_p (mxt_remove),
++	.suspend = mxt_suspend,
++	.resume = mxt_resume,
++};
++
++static int __init
++mxt_init (void)
++{
++	int err;
++
++	err = i2c_add_driver (&mxt_driver);
++	if (err)
++		printk ("Adding maXTouch driver failed " "(errno = %d)\n", err);
++	return err;
++}
++
++static void __exit
++mxt_cleanup (void)
++{
++	i2c_del_driver (&mxt_driver);
++}
++
++module_init (mxt_init);
++module_exit (mxt_cleanup);
++MODULE_AUTHOR ("Iiro Valkonen");
++MODULE_DESCRIPTION ("Driver for Atmel maXTouch Touchscreen Controller");
++MODULE_LICENSE ("GPL");
+diff --git a/drivers/video/omap2/displays/Kconfig b/drivers/video/omap2/displays/Kconfig
+index 6b0bfb9..cfd83bc 100644
+--- a/drivers/video/omap2/displays/Kconfig
++++ b/drivers/video/omap2/displays/Kconfig
+@@ -50,4 +50,10 @@ config PANEL_CMEL_OLED43
+         depends on OMAP2_DSS
+         help
+           OLED Panel used on BeagleSlide
++
++config PANEL_BROWN
++        tristate "BROWN LCD Panel"
++        depends on OMAP2_DSS
++        help
++          OLED Panel used on Brown
+ endmenu
+diff --git a/drivers/video/omap2/displays/Makefile b/drivers/video/omap2/displays/Makefile
+index 2d3c749..5546ae9 100644
+--- a/drivers/video/omap2/displays/Makefile
++++ b/drivers/video/omap2/displays/Makefile
+@@ -2,7 +2,7 @@ obj-$(CONFIG_PANEL_GENERIC) += panel-generic.o
+ obj-$(CONFIG_PANEL_CMEL_OLED43) += panel-cmel-oled43.o
+ obj-$(CONFIG_PANEL_SHARP_LS037V7DW01) += panel-sharp-ls037v7dw01.o
+ obj-$(CONFIG_PANEL_SHARP_LQ043T1DG01) += panel-sharp-lq043t1dg01.o
+-
++obj-$(CONFIG_PANEL_BROWN) += panel-brown.o
+ obj-$(CONFIG_PANEL_TAAL) += panel-taal.o
+ obj-$(CONFIG_PANEL_TOPPOLY_TDO35S) += panel-toppoly-tdo35s.o
+ obj-$(CONFIG_PANEL_TPO_TD043MTEA1) += panel-tpo-td043mtea1.o
+diff --git a/drivers/video/omap2/displays/panel-brown.c b/drivers/video/omap2/displays/panel-brown.c
+new file mode 100644
+index 0000000..a25cebe
+--- /dev/null
++++ b/drivers/video/omap2/displays/panel-brown.c
+@@ -0,0 +1,197 @@
++/*
++ * Brown panel support
++ *
++ * Copyright (c) 2011 Logitech Inc.
++ * Author: David Wegmuller <dwegmull@logitech.com>
++ * Copyright (C) 2008 Nokia Corporation
++ * Author: Tomi Valkeinen <tomi.valkeinen@nokia.com>
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++#include <linux/module.h>
++#include <linux/delay.h>
++#include <linux/gpio.h>
++#include <linux/leds.h>
++#include <linux/fb.h>
++
++#include <plat/display.h>
++
++#define PANEL_PWR_PIN          	139
++#define PANEL_ENABLE_PIN	138
++#define BACK_LIGHT_PIN   	144
++
++#define digitalWrite(PIN,VALUE) (gpio_direction_output(PIN,VALUE))
++
++#define PWR_OFF digitalWrite(PANEL_PWR_PIN, 0)
++#define PWR_ON digitalWrite(PANEL_PWR_PIN, 1)
++#define PANEL_ENABLE_ON digitalWrite(PANEL_ENABLE_PIN, 1)
++#define PANEL_ENABLE_OFF digitalWrite(PANEL_ENABLE_PIN, 0)
++#define BACK_LIGHT_OFF digitalWrite(BACK_LIGHT_PIN, 1)
++#define BACK_LIGHT_ON digitalWrite(BACK_LIGHT_PIN, 0)
++
++/*
++ *   Video Timings
++ *       
++ */
++static struct omap_video_timings brown_panel_timings = {
++	/* 480 x 272 @ 60 Hz  */
++	.x_res		= 480,
++	.y_res		= 272,
++	.pixel_clock	= 9000,
++	.hfp		= 43,
++	.hsw		= 1,
++	.hbp		= 1,
++	.vfp		= 1,
++	.vsw		= 1,
++	.vbp		= 16,
++};
++static int brown_panel_power_on(struct omap_dss_device *dssdev)
++{
++	int r;
++	/* Apply power and set the backlight pin */
++	PWR_ON;
++	PANEL_ENABLE_ON;
++	BACK_LIGHT_ON;
++
++	r = omapdss_dpi_display_enable(dssdev);
++	if (r)
++		goto err0;
++
++	if (dssdev->platform_enable) {
++		r = dssdev->platform_enable(dssdev);
++		if (r)
++			goto err1;
++	}
++
++	return 0;
++err1:
++	omapdss_dpi_display_disable(dssdev);
++err0:
++	return r;
++}
++
++static void brown_panel_power_off(struct omap_dss_device *dssdev)
++{
++	if (dssdev->platform_disable)
++		dssdev->platform_disable(dssdev);
++
++	omapdss_dpi_display_disable(dssdev);
++
++	/* Shutoff power and set the backlight pin */
++	BACK_LIGHT_OFF;
++	PANEL_ENABLE_OFF;
++	PWR_OFF;
++}
++
++static int brown_panel_probe(struct omap_dss_device *dssdev)
++{
++	dssdev->panel.config = OMAP_DSS_LCD_TFT;
++	dssdev->panel.timings = brown_panel_timings;
++
++	return 0;
++}
++
++static void brown_panel_remove(struct omap_dss_device *dssdev)
++{
++}
++
++static int brown_panel_enable(struct omap_dss_device *dssdev)
++{
++	int r = 0;
++
++	r = brown_panel_power_on(dssdev);
++	if (r)
++		return r;
++
++	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
++
++	return 0;
++}
++
++static void brown_panel_disable(struct omap_dss_device *dssdev)
++{
++	brown_panel_power_off(dssdev);
++
++	dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
++}
++
++static int brown_panel_suspend(struct omap_dss_device *dssdev)
++{
++	brown_panel_power_off(dssdev);
++	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
++	return 0;
++}
++
++static int brown_panel_resume(struct omap_dss_device *dssdev)
++{
++	int r = 0;
++
++	r = brown_panel_power_on(dssdev);
++	if (r)
++		return r;
++
++	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
++
++	return 0;
++}
++
++static void brown_panel_set_timings(struct omap_dss_device *dssdev,
++		struct omap_video_timings *timings)
++{
++	dpi_set_timings(dssdev, timings);
++}
++
++static void brown_panel_get_timings(struct omap_dss_device *dssdev,
++		struct omap_video_timings *timings)
++{
++	*timings = dssdev->panel.timings;
++}
++
++static int brown_panel_check_timings(struct omap_dss_device *dssdev,
++		struct omap_video_timings *timings)
++{
++	return dpi_check_timings(dssdev, timings);
++}
++
++static struct omap_dss_driver brown_driver = {
++	.probe		= brown_panel_probe,
++	.remove		= brown_panel_remove,
++
++	.enable		= brown_panel_enable,
++	.disable	= brown_panel_disable,
++	.suspend	= brown_panel_suspend,
++	.resume		= brown_panel_resume,
++
++	.set_timings	= brown_panel_set_timings,
++	.get_timings	= brown_panel_get_timings,
++	.check_timings	= brown_panel_check_timings,
++
++	.driver         = {
++		.name   = "brown_panel",
++		.owner  = THIS_MODULE,
++	},
++};
++
++static int __init brown_panel_drv_init(void)
++{
++	return omap_dss_register_driver(&brown_driver);
++}
++
++static void __exit brown_panel_drv_exit(void)
++{
++	omap_dss_unregister_driver(&brown_driver);
++}
++
++module_init(brown_panel_drv_init);
++module_exit(brown_panel_drv_exit);
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/omap2/displays/panel-cmel-oled43.c b/drivers/video/omap2/displays/panel-cmel-oled43.c
+index 531c6f9..d989625 100644
+--- a/drivers/video/omap2/displays/panel-cmel-oled43.c
++++ b/drivers/video/omap2/displays/panel-cmel-oled43.c
+@@ -24,24 +24,18 @@
+ 
+ #include <plat/display.h>
+ 
+-#define CS_PIN          139
+-#define MOSI_PIN        144
+-#define CLK_PIN         138
+-#define RESET_PIN       137
+-#define PANEL_PWR_PIN   143
++#define PANEL_PWR_PIN          	139
++#define PANEL_ENABLE_PIN	138
++#define BACK_LIGHT_PIN   	144
+ 
+ #define digitalWrite(PIN,VALUE) (gpio_direction_output(PIN,VALUE))
+ 
+-#define CS_LOW digitalWrite(CS_PIN, 0)
+-#define CS_HIGH digitalWrite(CS_PIN, 1)
+-#define MOSI_LOW digitalWrite(MOSI_PIN, 0)
+-#define MOSI_HIGH digitalWrite(MOSI_PIN, 1)
+-#define CLK_LOW digitalWrite(CLK_PIN, 0)
+-#define CLK_HIGH digitalWrite(CLK_PIN, 1)
+-#define RESET_LOW digitalWrite(RESET_PIN, 0)
+-#define RESET_HIGH digitalWrite(RESET_PIN, 1)
+-#define PANEL_PWR_LOW digitalWrite(PANEL_PWR_PIN, 0)
+-#define PANEL_PWR_HIGH digitalWrite(PANEL_PWR_PIN, 1)
++#define PWR_OFF digitalWrite(PANEL_PWR_PIN, 0)
++#define PWR_ON digitalWrite(PANEL_PWR_PIN, 1)
++#define PANEL_ENABLE_ON digitalWrite(PANEL_ENABLE_PIN, 1)
++#define PANEL_ENABLE_OFF digitalWrite(PANEL_ENABLE_PIN, 0)
++#define BACK_LIGHT_OFF digitalWrite(BACK_LIGHT_PIN, 1)
++#define BACK_LIGHT_ON digitalWrite(BACK_LIGHT_PIN, 0)
+ 
+ /*
+  *   Video Timings
+@@ -52,103 +46,28 @@
+  *         vfp must be > 10,
+  *         vbp must be = 20,
+  */
+-static struct omap_video_timings oled43_timings = {
+-	.x_res = 480,
+-	.y_res = 272,
+-
+-	.pixel_clock	= 12342,
+-
+-	.hsw		= 30,
+-	.hfp		= 31,
+-	.hbp		= 102,
+-
+-	.vsw		= 3,
+-	.vfp		= 11,
+-	.vbp		= 20,
++static struct omap_video_timings oled43_panel_timings = {
++	/* 480 x 272 @ 60 Hz  */
++	.x_res		= 480,
++	.y_res		= 272,
++	.pixel_clock	= 9000,
++	.hfp		= 43,
++	.hsw		= 1,
++	.hbp		= 1,
++	.vfp		= 1,
++	.vsw		= 1,
++	.vbp		= 16,
+ };
+ 
+-/* Initialize the software SPI interface */
+-static void oled43_spi_init(void) {
+-    CS_HIGH;
+-    MOSI_HIGH;
+-    CLK_HIGH;
+-}
+-
+-/* Write an 8-bit byte onto the SPI bus */
+-static void oled43_spi_write8(uint8_t data) {
+-uint8_t ii;
+-uint8_t bit;
+-
+-    for (ii=0; ii < 8; ii++) {
+-        bit = (data >> (7-ii)) & 1;
+-        if (bit) {
+-            MOSI_HIGH;
+-        } else {
+-            MOSI_LOW;
+-        }
+-
+-        CLK_LOW;		//clock the data in
+-        CLK_HIGH;
+-    }
+-}
+-
+-/* Write a value to the OLED panel */
+-static void oled43_writeReg(uint8_t index, uint8_t val) {
+-    CS_LOW;
+-    oled43_spi_write8((index << 1));
+-    oled43_spi_write8(val);
+-    CS_HIGH;
+-}
+ 
+-static int oled43_hardware_init(void) {
+-uint8_t brightness;
+-double percent; 
+-
+-	/* Panel init sequence from the panel datasheet */
+-	PANEL_PWR_LOW;						// just to be sure, hold the oled power supply off
+-	RESET_LOW;							// panel in reset
+-	oled43_spi_init();					// init spi interface
+-	RESET_HIGH;							// panel out of reset
+-
+-    oled43_writeReg(0x04, 0x23); //DISPLAY_MODE2
+-    oled43_writeReg(0x05, 0x82); //DISPLAY_MODE3
+-
+-    oled43_writeReg(0x07, 0x0F); //DRIVER_CAPABILITY
+-    oled43_writeReg(0x34, 0x18);
+-    oled43_writeReg(0x35, 0x28);
+-    oled43_writeReg(0x36, 0x16);
+-    oled43_writeReg(0x37, 0x01);
+-
+-    oled43_writeReg(0x03, 35);   //VGAM1_LEVEL
+-
+-    /* Set the brightness
+-     *  0x20 - 200 nits
+-     *  0x1E - 175 nits
+-     *  0x1C - 150 nits
+-     *  0x17 - 100 nits
+-     *  0x14 -  70 nits
+-     *  0x11 -  50 nits */
+-    brightness = 0x14;
+-    percent = ((double)brightness)/
+-               (0x20) * 100.0;
+-
+-    printk(KERN_INFO "cmel_oled43_panel: Setting brightness to %d percent\n", (int)percent);
+-    
+-    oled43_writeReg(0x3A, brightness);    
+-
+-    /* Display ON */
+-    oled43_writeReg(0x06, 0x03); //POWER_CTRL1
+-
+-	PANEL_PWR_HIGH;
+-    
+-	return 0;
+-}
+ 
+ static int oled43_panel_power_on(struct omap_dss_device *dssdev)
+ {
+ 	int r;
+-
+-	oled43_hardware_init();
++	/* Apply power and set the backlight pin */
++	PWR_ON;
++	PANEL_ENABLE_ON;
++	BACK_LIGHT_ON;
+ 
+ 	r = omapdss_dpi_display_enable(dssdev);
+ 	if (r)
+@@ -169,58 +88,38 @@ err0:
+ 
+ static void oled43_panel_power_off(struct omap_dss_device *dssdev)
+ {
+-    /* Turn off the power supply */
+-	PANEL_PWR_LOW; 
+-}
++	if (dssdev->platform_disable)
++		dssdev->platform_disable(dssdev);
+ 
+-static void oled43_panel_led_set(struct led_classdev *cdev, enum led_brightness value)
+-{
+-	int level;
+-    
+-    level = value / 8; //scaled for the controller
+-    if (value <= 20) {
+-        /* brightness threshold reached, turning off */
+-        printk(KERN_INFO "cmel_oled43_panel: brightness set at or below threshold, turning OFF\n");
+-        level = 0;
+-    }
+-    oled43_writeReg(0x3A, level);
+-}
++	omapdss_dpi_display_disable(dssdev);
+ 
+-static struct led_classdev cmel_oled43_panel_led_ops = {
+-    .name = "lcd-backlight",
+-	.brightness_set = oled43_panel_led_set,
+-    .brightness = 159,
+-    .max_brightness = 255,
+-};
++	/* Shutoff power and set the backlight pin */
++	BACK_LIGHT_OFF;
++	PANEL_ENABLE_OFF;
++	PWR_OFF;
++}
+ 
+ static int oled43_panel_probe(struct omap_dss_device *dssdev)
+ {
+-    struct led_classdev	*cdev;
+-
+ 	dssdev->panel.config = OMAP_DSS_LCD_TFT;
+-	dssdev->panel.timings = oled43_timings;
+-    
+-	cdev = led_classdev_register((struct device *)&dssdev->dev,
+-			&cmel_oled43_panel_led_ops);
++	dssdev->panel.timings = oled43_panel_timings;
+ 
+ 	return 0;
+ }
+ 
+ static void oled43_panel_remove(struct omap_dss_device *dssdev)
+ {
+-    oled43_panel_power_off(dssdev);
+ }
+ 
+ static int oled43_panel_enable(struct omap_dss_device *dssdev)
+ {
+ 	int r = 0;
+-	pr_info("cmel_oled43_panel: panel_enable begin\n");
++
+ 	r = oled43_panel_power_on(dssdev);
+ 	if (r)
+ 		return r;
+ 
+ 	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
+-	pr_info("cmel_oled43_panel: panel_enable end\n");
+ 
+ 	return 0;
+ }
+@@ -236,14 +135,13 @@ static int oled43_panel_suspend(struct omap_dss_device *dssdev)
+ {
+ 	oled43_panel_power_off(dssdev);
+ 	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
+-	pr_info("cmel_oled43_panel: panel_suspend\n");
+ 	return 0;
+ }
+ 
+ static int oled43_panel_resume(struct omap_dss_device *dssdev)
+ {
+ 	int r = 0;
+-	pr_info("cmel_oled43_panel: panel_resume\n");
++
+ 	r = oled43_panel_power_on(dssdev);
+ 	if (r)
+ 		return r;
+@@ -292,27 +190,7 @@ static struct omap_dss_driver oled43_driver = {
+ 
+ static int __init oled43_panel_drv_init(void)
+ {
+-	int ret = 0;
+-
+-	printk(KERN_INFO "cmel_oled43_panel: init panel\n");
+-
+-	/* Request GPIO pins used for the panel */
+-    printk(KERN_INFO "cmel_oled43_panel: requesting GPIOs\n");
+-	gpio_request(CS_PIN, "OLED43_CS_PIN");
+-	gpio_request(MOSI_PIN, "OLED43_MOSI_PIN");
+-	gpio_request(CLK_PIN, "OLED43_CLK_PIN");
+-	gpio_request(RESET_PIN, "OLED43_RESET_PIN");
+-	gpio_request(PANEL_PWR_PIN, "OLED43_PANEL_PWR_PIN");
+-    
+-    /* Hold the power supply off until enabled */
+-	PANEL_PWR_LOW;
+-
+-	ret = omap_dss_register_driver(&oled43_driver);
+-	if (ret != 0)
+-		pr_err("cmel_oled43: Unable to register panel driver: %d\n", ret);
+-
+-	printk(KERN_INFO "cmel_oled43_panel: done\n");
+-	return ret;
++	return omap_dss_register_driver(&oled43_driver);
+ }
+ 
+ static void __exit oled43_panel_drv_exit(void)
+diff --git a/drivers/video/omap2/displays/panel-cmel-oled43.old b/drivers/video/omap2/displays/panel-cmel-oled43.old
+new file mode 100644
+index 0000000..531c6f9
+--- /dev/null
++++ b/drivers/video/omap2/displays/panel-cmel-oled43.old
+@@ -0,0 +1,325 @@
++/*
++ * OLED panel driver for CMEL OLED43
++ *
++ * Author: Chris Ladden <chris.ladden@liquidware.com>
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <linux/module.h>
++#include <linux/delay.h>
++#include <linux/gpio.h>
++#include <linux/leds.h>
++#include <linux/fb.h>
++
++#include <plat/display.h>
++
++#define CS_PIN          139
++#define MOSI_PIN        144
++#define CLK_PIN         138
++#define RESET_PIN       137
++#define PANEL_PWR_PIN   143
++
++#define digitalWrite(PIN,VALUE) (gpio_direction_output(PIN,VALUE))
++
++#define CS_LOW digitalWrite(CS_PIN, 0)
++#define CS_HIGH digitalWrite(CS_PIN, 1)
++#define MOSI_LOW digitalWrite(MOSI_PIN, 0)
++#define MOSI_HIGH digitalWrite(MOSI_PIN, 1)
++#define CLK_LOW digitalWrite(CLK_PIN, 0)
++#define CLK_HIGH digitalWrite(CLK_PIN, 1)
++#define RESET_LOW digitalWrite(RESET_PIN, 0)
++#define RESET_HIGH digitalWrite(RESET_PIN, 1)
++#define PANEL_PWR_LOW digitalWrite(PANEL_PWR_PIN, 0)
++#define PANEL_PWR_HIGH digitalWrite(PANEL_PWR_PIN, 1)
++
++/*
++ *   Video Timings
++ *       
++ *   Frame Rate = 1/((vbp + vfp + 272)*(hbp + hfp + 480)/pixel_clock)
++ *   Where hfp must be > 30,
++ *         hbp must be = 102,
++ *         vfp must be > 10,
++ *         vbp must be = 20,
++ */
++static struct omap_video_timings oled43_timings = {
++	.x_res = 480,
++	.y_res = 272,
++
++	.pixel_clock	= 12342,
++
++	.hsw		= 30,
++	.hfp		= 31,
++	.hbp		= 102,
++
++	.vsw		= 3,
++	.vfp		= 11,
++	.vbp		= 20,
++};
++
++/* Initialize the software SPI interface */
++static void oled43_spi_init(void) {
++    CS_HIGH;
++    MOSI_HIGH;
++    CLK_HIGH;
++}
++
++/* Write an 8-bit byte onto the SPI bus */
++static void oled43_spi_write8(uint8_t data) {
++uint8_t ii;
++uint8_t bit;
++
++    for (ii=0; ii < 8; ii++) {
++        bit = (data >> (7-ii)) & 1;
++        if (bit) {
++            MOSI_HIGH;
++        } else {
++            MOSI_LOW;
++        }
++
++        CLK_LOW;		//clock the data in
++        CLK_HIGH;
++    }
++}
++
++/* Write a value to the OLED panel */
++static void oled43_writeReg(uint8_t index, uint8_t val) {
++    CS_LOW;
++    oled43_spi_write8((index << 1));
++    oled43_spi_write8(val);
++    CS_HIGH;
++}
++
++static int oled43_hardware_init(void) {
++uint8_t brightness;
++double percent; 
++
++	/* Panel init sequence from the panel datasheet */
++	PANEL_PWR_LOW;						// just to be sure, hold the oled power supply off
++	RESET_LOW;							// panel in reset
++	oled43_spi_init();					// init spi interface
++	RESET_HIGH;							// panel out of reset
++
++    oled43_writeReg(0x04, 0x23); //DISPLAY_MODE2
++    oled43_writeReg(0x05, 0x82); //DISPLAY_MODE3
++
++    oled43_writeReg(0x07, 0x0F); //DRIVER_CAPABILITY
++    oled43_writeReg(0x34, 0x18);
++    oled43_writeReg(0x35, 0x28);
++    oled43_writeReg(0x36, 0x16);
++    oled43_writeReg(0x37, 0x01);
++
++    oled43_writeReg(0x03, 35);   //VGAM1_LEVEL
++
++    /* Set the brightness
++     *  0x20 - 200 nits
++     *  0x1E - 175 nits
++     *  0x1C - 150 nits
++     *  0x17 - 100 nits
++     *  0x14 -  70 nits
++     *  0x11 -  50 nits */
++    brightness = 0x14;
++    percent = ((double)brightness)/
++               (0x20) * 100.0;
++
++    printk(KERN_INFO "cmel_oled43_panel: Setting brightness to %d percent\n", (int)percent);
++    
++    oled43_writeReg(0x3A, brightness);    
++
++    /* Display ON */
++    oled43_writeReg(0x06, 0x03); //POWER_CTRL1
++
++	PANEL_PWR_HIGH;
++    
++	return 0;
++}
++
++static int oled43_panel_power_on(struct omap_dss_device *dssdev)
++{
++	int r;
++
++	oled43_hardware_init();
++
++	r = omapdss_dpi_display_enable(dssdev);
++	if (r)
++		goto err0;
++
++	if (dssdev->platform_enable) {
++		r = dssdev->platform_enable(dssdev);
++		if (r)
++			goto err1;
++	}
++
++	return 0;
++err1:
++	omapdss_dpi_display_disable(dssdev);
++err0:
++	return r;
++}
++
++static void oled43_panel_power_off(struct omap_dss_device *dssdev)
++{
++    /* Turn off the power supply */
++	PANEL_PWR_LOW; 
++}
++
++static void oled43_panel_led_set(struct led_classdev *cdev, enum led_brightness value)
++{
++	int level;
++    
++    level = value / 8; //scaled for the controller
++    if (value <= 20) {
++        /* brightness threshold reached, turning off */
++        printk(KERN_INFO "cmel_oled43_panel: brightness set at or below threshold, turning OFF\n");
++        level = 0;
++    }
++    oled43_writeReg(0x3A, level);
++}
++
++static struct led_classdev cmel_oled43_panel_led_ops = {
++    .name = "lcd-backlight",
++	.brightness_set = oled43_panel_led_set,
++    .brightness = 159,
++    .max_brightness = 255,
++};
++
++static int oled43_panel_probe(struct omap_dss_device *dssdev)
++{
++    struct led_classdev	*cdev;
++
++	dssdev->panel.config = OMAP_DSS_LCD_TFT;
++	dssdev->panel.timings = oled43_timings;
++    
++	cdev = led_classdev_register((struct device *)&dssdev->dev,
++			&cmel_oled43_panel_led_ops);
++
++	return 0;
++}
++
++static void oled43_panel_remove(struct omap_dss_device *dssdev)
++{
++    oled43_panel_power_off(dssdev);
++}
++
++static int oled43_panel_enable(struct omap_dss_device *dssdev)
++{
++	int r = 0;
++	pr_info("cmel_oled43_panel: panel_enable begin\n");
++	r = oled43_panel_power_on(dssdev);
++	if (r)
++		return r;
++
++	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
++	pr_info("cmel_oled43_panel: panel_enable end\n");
++
++	return 0;
++}
++
++static void oled43_panel_disable(struct omap_dss_device *dssdev)
++{
++	oled43_panel_power_off(dssdev);
++
++	dssdev->state = OMAP_DSS_DISPLAY_DISABLED;
++}
++
++static int oled43_panel_suspend(struct omap_dss_device *dssdev)
++{
++	oled43_panel_power_off(dssdev);
++	dssdev->state = OMAP_DSS_DISPLAY_SUSPENDED;
++	pr_info("cmel_oled43_panel: panel_suspend\n");
++	return 0;
++}
++
++static int oled43_panel_resume(struct omap_dss_device *dssdev)
++{
++	int r = 0;
++	pr_info("cmel_oled43_panel: panel_resume\n");
++	r = oled43_panel_power_on(dssdev);
++	if (r)
++		return r;
++
++	dssdev->state = OMAP_DSS_DISPLAY_ACTIVE;
++
++	return 0;
++}
++
++static void oled43_panel_set_timings(struct omap_dss_device *dssdev,
++		struct omap_video_timings *timings)
++{
++	dpi_set_timings(dssdev, timings);
++}
++
++static void oled43_panel_get_timings(struct omap_dss_device *dssdev,
++		struct omap_video_timings *timings)
++{
++	*timings = dssdev->panel.timings;
++}
++
++static int oled43_panel_check_timings(struct omap_dss_device *dssdev,
++		struct omap_video_timings *timings)
++{
++	return dpi_check_timings(dssdev, timings);
++}
++
++static struct omap_dss_driver oled43_driver = {
++	.probe		= oled43_panel_probe,
++	.remove		= oled43_panel_remove,
++
++	.enable		= oled43_panel_enable,
++	.disable	= oled43_panel_disable,
++	.suspend	= oled43_panel_suspend,
++	.resume		= oled43_panel_resume,
++
++	.set_timings	= oled43_panel_set_timings,
++	.get_timings	= oled43_panel_get_timings,
++	.check_timings	= oled43_panel_check_timings,
++
++	.driver         = {
++		.name   = "cmel_oled43_panel",
++		.owner  = THIS_MODULE,
++	},
++};
++
++static int __init oled43_panel_drv_init(void)
++{
++	int ret = 0;
++
++	printk(KERN_INFO "cmel_oled43_panel: init panel\n");
++
++	/* Request GPIO pins used for the panel */
++    printk(KERN_INFO "cmel_oled43_panel: requesting GPIOs\n");
++	gpio_request(CS_PIN, "OLED43_CS_PIN");
++	gpio_request(MOSI_PIN, "OLED43_MOSI_PIN");
++	gpio_request(CLK_PIN, "OLED43_CLK_PIN");
++	gpio_request(RESET_PIN, "OLED43_RESET_PIN");
++	gpio_request(PANEL_PWR_PIN, "OLED43_PANEL_PWR_PIN");
++    
++    /* Hold the power supply off until enabled */
++	PANEL_PWR_LOW;
++
++	ret = omap_dss_register_driver(&oled43_driver);
++	if (ret != 0)
++		pr_err("cmel_oled43: Unable to register panel driver: %d\n", ret);
++
++	printk(KERN_INFO "cmel_oled43_panel: done\n");
++	return ret;
++}
++
++static void __exit oled43_panel_drv_exit(void)
++{
++	omap_dss_unregister_driver(&oled43_driver);
++}
++
++module_init(oled43_panel_drv_init);
++module_exit(oled43_panel_drv_exit);
++MODULE_LICENSE("GPL");
+diff --git a/drivers/video/omap2/displays/panel-generic.c b/drivers/video/omap2/displays/panel-generic.c
+index 395a68d..7d4b925 100644
+--- a/drivers/video/omap2/displays/panel-generic.c
++++ b/drivers/video/omap2/displays/panel-generic.c
+@@ -16,7 +16,6 @@
+  * You should have received a copy of the GNU General Public License along with
+  * this program.  If not, see <http://www.gnu.org/licenses/>.
+  */
+-
+ #include <linux/module.h>
+ #include <linux/delay.h>
+ 
+@@ -24,24 +23,21 @@
+ 
+ static struct omap_video_timings generic_panel_timings = {
+ 	/* 640 x 480 @ 60 Hz  Reduced blanking VESA CVT 0.31M3-R */
+-	.x_res		= 640,
+-	.y_res		= 480,
+-	.pixel_clock	= 23500,
+-	.hfp		= 48,
+-	.hsw		= 32,
+-	.hbp		= 80,
+-	.vfp		= 3,
+-	.vsw		= 4,
+-	.vbp		= 7,
++	.x_res		= 480,
++	.y_res		= 272,
++	.pixel_clock	= 81000,
++	.hfp		= 20,
++	.hsw		= 1,
++	.hbp		= 25,		// 480+20+25 = 525 total horizontal
++	.vfp		= 8,
++	.vsw		= 1,
++	.vbp		= 8,		// 272+8+8 = 288 total vertical
+ };
+ 
+ static int generic_panel_power_on(struct omap_dss_device *dssdev)
+ {
+ 	int r;
+ 
+-	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
+-		return 0;
+-
+ 	r = omapdss_dpi_display_enable(dssdev);
+ 	if (r)
+ 		goto err0;
+@@ -61,9 +57,6 @@ err0:
+ 
+ static void generic_panel_power_off(struct omap_dss_device *dssdev)
+ {
+-	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
+-		return;
+-
+ 	if (dssdev->platform_disable)
+ 		dssdev->platform_disable(dssdev);
+ 
+diff --git a/include/linux/atmel_maxtouch.h b/include/linux/atmel_maxtouch.h
+new file mode 100644
+index 0000000..3c7a457
+--- /dev/null
++++ b/include/linux/atmel_maxtouch.h
+@@ -0,0 +1,275 @@
++/*
++ *	Atmel maXTouch header file
++ *
++ *	Copyright (c) 2010 Atmel Corporation
++ *	Copyright (C) 2010 Ulf Samuelsson (ulf@atmel.com)
++ *
++ *	This program is free software; you can redistribute it and/or modify
++ *	it under the terms of the GNU General Public License version 2 or 3 as
++ *	published by the Free Software Foundation.
++ *	See the file "COPYING" in the main directory of this archive
++ *	for more details.
++ *
++ */
++#ifndef __ATMEL_MAXTOUCH_H
++#define	__ATMEL_MAXTOUCH_H
++
++#include <linux/types.h>
++#include <asm/ioctl.h>
++
++#define MXT224_I2C_ADDR1			0x4A
++#define MXT224_I2C_ADDR2			0x4B
++#define MXT1386_I2C_ADDR1			0x4C
++#define MXT1386_I2C_ADDR2			0x4D
++#define MXT1386_I2C_ADDR3			0x5A
++#define MXT1386_I2C_ADDR4			0x5B
++
++/*
++ * Select this address from above depending on what maXTouch
++ * chip you have and how it's address pins are configured;
++ * see datasheet.
++ */
++#define MXT_I2C_ADDRESS				MXT224_I2C_ADDR1 /*MXT1386_I2C_ADDR2*/
++#define MXT224_FAMILYID				0x80
++#define MXT1386_FAMILYID			0xA0
++#define MXT224_CAL_VARIANTID			0x01
++#define MXT224_UNCAL_VARIANTID			0x00
++#define MXT1386_CAL_VARIANTID			0x00
++#define MXT_MAX_REPORTED_WIDTH			255
++#define MXT_MAX_REPORTED_PRESSURE		255
++#define MXT_MAX_TOUCH_SIZE			255
++#define MXT_MAX_NUM_TOUCHES			10
++
++/* Fixed addresses inside maXTouch device */
++#define MXT_ADDR_INFO_BLOCK			0
++#define MXT_ADDR_OBJECT_TABLE			7
++#define MXT_ID_BLOCK_SIZE			7
++#define MXT_OBJECT_TABLE_ELEMENT_SIZE		6
++
++/* Object types */
++#define MXT_DEBUG_DELTAS_T2			2
++#define MXT_DEBUG_REFERENCES_T3			3
++#define MXT_GEN_MESSAGEPROCESSOR_T5		5
++#define MXT_GEN_COMMANDPROCESSOR_T6		6
++#define MXT_GEN_POWERCONFIG_T7			7
++#define MXT_GEN_ACQUIRECONFIG_T8		8
++#define MXT_TOUCH_MULTITOUCHSCREEN_T9		9
++#define MXT_TOUCH_SINGLETOUCHSCREEN_T10		10
++#define MXT_TOUCH_XSLIDER_T11			11
++#define MXT_TOUCH_YSLIDER_T12			12
++#define MXT_TOUCH_XWHEEL_T13			13
++#define MXT_TOUCH_YWHEEL_T14			14
++#define MXT_TOUCH_KEYARRAY_T15			15
++#define MXT_SPT_GPIOPWM_T19			19
++#define MXT_PROCI_GRIPFACESUPPRESSION_T20	20
++#define MXT_PROCG_NOISESUPPRESSION_T22		22
++#define MXT_TOUCH_PROXIMITY_T23			23
++#define MXT_PROCI_ONETOUCHGESTUREPROCESSOR_T24	24
++#define MXT_SPT_SELFTEST_T25			25
++#define MXT_DEBUG_CTERANGE_T26			26
++#define MXT_PROCI_TWOTOUCHGESTUREPROCESSOR_T27	27
++#define MXT_SPT_CTECONFIG_T28			28
++#define MXT_TOUCH_KEYSET_T31			31
++#define MXT_TOUCH_XSLIDERSET_T32		32
++#define MXT_DEBUG_DIAGNOSTIC_T37		37
++#define MXT_USER_INFO_T38			38
++
++/*
++ * If a message is read from mXT when there's no new messages available,
++ * the report ID of the message will be 0xFF.
++ */
++#define MXT_END_OF_MESSAGES			0xFF
++
++/* GEN_COMMANDPROCESSOR_T6 Register offsets from T6 base address */
++#define MXT_ADR_T6_RESET			0x00
++#define MXT_ADR_T6_BACKUPNV			0x01
++#define MXT_ADR_T6_CALIBRATE			0x02
++#define MXT_ADR_T6_REPORTALL			0x03
++#define MXT_ADR_T6_RESERVED			0x04
++#define MXT_ADR_T6_DIAGNOSTIC			0x05
++/* T6 Debug Diagnostics Commands */
++#define MXT_CMD_T6_PAGE_UP				0x01
++#define MXT_CMD_T6_PAGE_DOWN				0x02
++#define MXT_CMD_T6_DELTAS_MODE				0x10
++#define MXT_CMD_T6_REFERENCES_MODE			0x11
++#define MXT_CMD_T6_CTE_MODE				0x31
++#define MXT_CMD_T6_BACKUP				0x55	/* T6 Backup Command */
++
++/* SPT_DEBUG_DIAGNOSTIC_T37 Register offsets from T37 base address */
++#define MXT_ADR_T37_PAGE			0x01
++#define MXT_ADR_T37_DATA			0x02
++
++/************************************************************************
++ * MESSAGE OBJECTS ADDRESS FIELDS
++ ************************************************************************/
++#define MXT_MSG_REPORTID			0x00
++/* MXT_GEN_MESSAGEPROCESSOR_T5 Message address definitions */
++#define MXT_MSG_T5_REPORTID			0x00
++#define MXT_MSG_T5_MESSAGE			0x01
++#define MXT_MSG_T5_CHECKSUM			0x08
++
++/* MXT_GEN_COMMANDPROCESSOR_T6 Message address definitions */
++#define MXT_MSG_T6_STATUS			0x01
++#define	MXT_MSGB_T6_COMSERR				0x04
++#define	MXT_MSGB_T6_CFGERR				0x08
++#define	MXT_MSGB_T6_CAL					0x10
++#define	MXT_MSGB_T6_SIGERR				0x20
++#define	MXT_MSGB_T6_OFL					0x40
++#define	MXT_MSGB_T6_RESET				0x80
++/* Three bytes */
++#define MXT_MSG_T6_CHECKSUM			0x02
++/* MXT_GEN_POWERCONFIG_T7 NO Message address definitions */
++/* MXT_GEN_ACQUIRECONFIG_T8 Message address definitions */
++/* MXT_TOUCH_MULTITOUCHSCREEN_T9 Message address definitions */
++
++#define MXT_MSG_T9_ID				0x00
++#define MXT_MSG_T9_STATUS			0x01
++/* Status bit field */
++#define	MXT_MSGB_T9_SUPPRESS				0x02
++#define	MXT_MSGB_T9_AMP					0x04
++#define	MXT_MSGB_T9_VECTOR				0x08
++#define	MXT_MSGB_T9_MOVE				0x10
++#define	MXT_MSGB_T9_RELEASE				0x20
++#define	MXT_MSGB_T9_PRESS				0x40
++#define	MXT_MSGB_T9_DETECT				0x80
++#define MXT_MSG_T9_XPOSMSB			0x02
++#define MXT_MSG_T9_YPOSMSB			0x03
++#define MXT_MSG_T9_XYPOSLSB			0x04
++#define MXT_MSG_T9_TCHAREA			0x05
++#define MXT_MSG_T9_TCHAMPLITUDE			0x06
++#define MXT_MSG_T9_TCHVECTOR			0x07
++
++/* MXT_SPT_GPIOPWM_T19 Message address definitions */
++#define MXT_MSG_T19_STATUS			0x01
++
++/* MXT_PROCI_GRIPFACESUPPRESSION_T20 Message address definitions */
++#define MXT_MSG_T20_STATUS			0x01
++#define	MXT_MSGB_T20_FACE_SUPPRESS		0x01
++
++/* MXT_PROCG_NOISESUPPRESSION_T22 Message address definitions */
++#define MXT_MSG_T22_STATUS			0x01
++#define	MXT_MSGB_T22_FHCHG				0x01
++#define	MXT_MSGB_T22_GCAFERR				0x04
++#define	MXT_MSGB_T22_FHERR				0x08
++#define MXT_MSG_T22_GCAFDEPTH			0x02
++
++/* MXT_TOUCH_PROXIMITY_T23 Message address definitions */
++#define MXT_MSG_T23_STATUS			0x01
++#define	MXT_MSGB_T23_FALL				0x20
++#define	MXT_MSGB_T23_RISE				0x40
++#define	MXT_MSGB_T23_DETECT				0x80
++#define MXT_MSG_T23_PROXDELTA			0x02	/* 16 bit */
++
++/* MXT_PROCI_ONETOUCHGESTUREPROCESSOR_T24 Message address definitions */
++#define MXT_MSG_T24_STATUS			0x01
++#define MXT_MSG_T24_XPOSMSB			0x02
++#define MXT_MSG_T24_YPOSMSB			0x03
++#define MXT_MSG_T24_XYPOSLSB			0x04
++#define MXT_MSG_T24_DIR				0x05
++#define MXT_MSG_T24_DIST			0x06	/* 16 bit */
++
++/* MXT_SPT_SELFTEST_T25 Message address definitions */
++#define MXT_MSG_T25_STATUS			0x01
++#define	MXT_MSGR_T25_OK					0xFE
++#define	MXT_MSGR_T25_INVALID_TEST			0xFD
++#define	MXT_MSGR_T25_PIN_FAULT				0x11
++#define	MXT_MSGR_T25_SIGNAL_LIMIT_FAULT			0x17
++#define	MXT_MSGR_T25_GAIN_ERROR				0x20
++#define MXT_MSG_T25_INFO			0x02	/* 5 bytes of info */
++
++/* MXT_PROCI_TWOTOUCHGESTUREPROCESSOR_T27 Message address definitions */
++#define MXT_MSG_T27_STATUS			0x01
++#define	MXT_MSGB_T27_ROTATEDIR				0x10
++#define	MXT_MSGB_T27_PINCH				0x20
++#define	MXT_MSGB_T27_ROTATE				0x40
++#define	MXT_MSGB_T27_STRETCH				0x80
++#define MXT_MSG_T27_XPOSMSB			0x02
++#define MXT_MSG_T27_YPOSMSB			0x03
++#define MXT_MSG_T27_XYPOSLSB			0x04
++#define MXT_MSG_T27_ANGLE			0x05
++#define MXT_MSG_T27_SEPARATION			0x06	/* 16 bit */
++
++/* MXT_SPT_CTECONFIG_T28 Message address definitions */
++#define MXT_MSG_T28_STATUS			0x01
++#define MXT_MSGB_T28_CHKERR			0x01
++
++/* One Touch Events */
++#define MXT_GESTURE_RESERVED			0x00
++#define MXT_GESTURE_PRESS			0x01
++#define MXT_GESTURE_RELEASE			0x02
++#define MXT_GESTURE_TAP				0x03
++#define MXT_GESTURE_DOUBLE_TAP			0x04
++#define MXT_GESTURE_FLICK			0x05
++#define MXT_GESTURE_DRAG			0x06
++#define MXT_GESTURE_SHORT_PRESS			0x07
++#define MXT_GESTURE_LONG_PRESS			0x08
++#define MXT_GESTURE_REPEAT_PRESS		0x09
++#define MXT_GESTURE_TAP_AND_PRESS		0x0a
++#define MXT_GESTURE_THROW			0x0b
++
++/* Two-touch events */
++#define MXT_GESTURE_STRETCH			(1 << 7)
++#define MXT_GESTURE_ROTATE			(1 << 6)
++#define MXT_GESTURE_PINCH			(1 << 5)
++#define MXT_GESTURE_ROTATEDIR			(1 << 4)
++
++/* Bootloader states */
++#define WAITING_BOOTLOAD_COMMAND		0xC0
++#define WAITING_FRAME_DATA			0x80
++#define APP_CRC_FAIL				0x40
++#define FRAME_CRC_CHECK				0x02
++#define FRAME_CRC_PASS				0x04
++#define FRAME_CRC_FAIL				0x03
++#define MXT_MAX_FRAME_SIZE			276
++
++/* Debug levels */
++#define DEBUG_INFO				1
++#define DEBUG_VERBOSE				2
++#define DEBUG_MESSAGES				5
++#define DEBUG_RAW				8
++#define DEBUG_TRACE				10
++
++/* IOCTL commands */
++#define MXT_SET_ADDRESS_IOCTL			_IOW('x', 0x01, int)	/* Sets the internal address pointer */
++#define MXT_RESET_IOCTL				_IO('x', 0x02)		/* Resets the device */
++#define MXT_CALIBRATE_IOCTL			_IO('x', 0x03)		/* Calibrates the device */
++#define MXT_BACKUP_IOCTL			_IO('x', 0x04)		/* Backups the current state of registers to NVM */
++#define MXT_NONTOUCH_MSG_IOCTL			_IO('x', 0x05)		/* Only non-touch messages can be read */
++#define MXT_ALL_MSG_IOCTL			_IO('x', 0x06)		/* All messages can be read from the message buffer */
++
++/* Message buffer size. This is a ring buffer, and when full, the oldest entry will be overwritten. */
++#define MXT_MESSAGE_BUFFER_SIZE	128
++
++/**
++ * struct mxt_platform_data - includes platform specific information
++ * related to Atmel maXTouch touchscreen controller.
++ *
++ * @numtouch:		Number of simultaneous touches supported
++ * @init_platform_hw(): Initialization function, which can for example
++ *			trigger a hardware reset by toggling a GPIO pin
++ * @exit_platform_hw(): Function to run when the driver is unloaded.
++ * @valid_interrupt():	Function that checks the validity of the interrupt -
++ *			function that check the validity of a interrupt (by
++ *			reading the changeline interrupt pin and checking that
++ *			it really is low for example).
++ * @max_x:		Reported X range
++ * @max_y:		Reported Y range
++ */
++struct mxt_platform_data {
++	u8	numtouch; /* Number of touches to report  */
++	void	(*init_platform_hw)(void);
++	void	(*exit_platform_hw)(void);
++	int	max_x;    /* The default reported X range   */
++	int	max_y;    /* The default reported Y range   */
++	u8	(*valid_interrupt) (void);
++	u8	(*read_chg) (void);
++};
++
++static inline u8 mxt_valid_interrupt_dummy(void)
++{
++	return 1;
++}
++
++void	mxt_hw_reset(void);
++
++#endif	// __ATMEL_MAXTOUCH_H
+diff --git a/include/linux/mfd/mustang-fpga-codec.h b/include/linux/mfd/mustang-fpga-codec.h
+new file mode 100644
+index 0000000..d728b3e
+--- /dev/null
++++ b/include/linux/mfd/mustang-fpga-codec.h
+@@ -0,0 +1,288 @@
++/*
++ * MFD driver for mustang_fpga codec submodule
++ *
++ * Author:	Peter Ujfalusi <peter.ujfalusi@nokia.com>
++ *
++ * Copyright:   (C) 2009 Nokia Corporation
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
++ *
++ */
++
++#ifndef __MUSTANG_FPGA_CODEC_H__
++#define __MUSTANG_FPGA_CODEC_H__
++
++/* Codec registers */
++#define MUSTANG_FPGA_REG_CODEC_MODE		0x01
++#define MUSTANG_FPGA_REG_OPTION		0x02
++#define MUSTANG_FPGA_REG_UNKNOWN		0x03
++#define MUSTANG_FPGA_REG_MICBIAS_CTL		0x04
++#define MUSTANG_FPGA_REG_ANAMICL		0x05
++#define MUSTANG_FPGA_REG_ANAMICR		0x06
++#define MUSTANG_FPGA_REG_AVADC_CTL		0x07
++#define MUSTANG_FPGA_REG_ADCMICSEL		0x08
++#define MUSTANG_FPGA_REG_DIGMIXING		0x09
++#define MUSTANG_FPGA_REG_ATXL1PGA		0x0A
++#define MUSTANG_FPGA_REG_ATXR1PGA		0x0B
++#define MUSTANG_FPGA_REG_AVTXL2PGA		0x0C
++#define MUSTANG_FPGA_REG_AVTXR2PGA		0x0D
++#define MUSTANG_FPGA_REG_AUDIO_IF		0x0E
++#define MUSTANG_FPGA_REG_VOICE_IF		0x0F
++#define MUSTANG_FPGA_REG_ARXR1PGA		0x10
++#define MUSTANG_FPGA_REG_ARXL1PGA		0x11
++#define MUSTANG_FPGA_REG_ARXR2PGA		0x12
++#define MUSTANG_FPGA_REG_ARXL2PGA		0x13
++#define MUSTANG_FPGA_REG_VRXPGA		0x14
++#define MUSTANG_FPGA_REG_VSTPGA		0x15
++#define MUSTANG_FPGA_REG_VRX2ARXPGA		0x16
++#define MUSTANG_FPGA_REG_AVDAC_CTL		0x17
++#define MUSTANG_FPGA_REG_ARX2VTXPGA		0x18
++#define MUSTANG_FPGA_REG_ARXL1_APGA_CTL	0x19
++#define MUSTANG_FPGA_REG_ARXR1_APGA_CTL	0x1A
++#define MUSTANG_FPGA_REG_ARXL2_APGA_CTL	0x1B
++#define MUSTANG_FPGA_REG_ARXR2_APGA_CTL	0x1C
++#define MUSTANG_FPGA_REG_ATX2ARXPGA		0x1D
++#define MUSTANG_FPGA_REG_BT_IF		0x1E
++#define MUSTANG_FPGA_REG_BTPGA		0x1F
++#define MUSTANG_FPGA_REG_BTSTPGA		0x20
++#define MUSTANG_FPGA_REG_EAR_CTL		0x21
++//#define MUSTANG_FPGA_REG_HS_SEL		0x22
++//#define MUSTANG_FPGA_REG_HS_GAIN_SET		0x23
++//#define MUSTANG_FPGA_REG_HS_POPN_SET		0x24
++//#define MUSTANG_FPGA_REG_PREDL_CTL		0x25
++//#define MUSTANG_FPGA_REG_PREDR_CTL		0x26
++//#define MUSTANG_FPGA_REG_PRECKL_CTL		0x27
++//#define MUSTANG_FPGA_REG_PRECKR_CTL		0x28
++//#define MUSTANG_FPGA_REG_HFL_CTL		0x29
++//#define MUSTANG_FPGA_REG_HFR_CTL		0x2A
++#define MUSTANG_FPGA_REG_ALC_CTL		0x2B
++#define MUSTANG_FPGA_REG_ALC_SET1		0x2C
++#define MUSTANG_FPGA_REG_ALC_SET2		0x2D
++#define MUSTANG_FPGA_REG_BOOST_CTL		0x2E
++#define MUSTANG_FPGA_REG_SOFTVOL_CTL		0x2F
++//#define MUSTANG_FPGA_REG_DTMF_FREQSEL	0x30
++//#define MUSTANG_FPGA_REG_DTMF_TONEXT1H	0x31
++//#define MUSTANG_FPGA_REG_DTMF_TONEXT1L	0x32
++//#define MUSTANG_FPGA_REG_DTMF_TONEXT2H	0x33
++//#define MUSTANG_FPGA_REG_DTMF_TONEXT2L	0x34
++//#define MUSTANG_FPGA_REG_DTMF_TONOFF		0x35
++//#define MUSTANG_FPGA_REG_DTMF_WANONOFF	0x36
++#define MUSTANG_FPGA_REG_I2S_RX_SCRAMBLE_H	0x37
++#define MUSTANG_FPGA_REG_I2S_RX_SCRAMBLE_M	0x38
++#define MUSTANG_FPGA_REG_I2S_RX_SCRAMBLE_L	0x39
++#define MUSTANG_FPGA_REG_APLL_CTL		0x3A
++//#define MUSTANG_FPGA_REG_DTMF_CTL		0x3B
++//#define MUSTANG_FPGA_REG_DTMF_PGA_CTL2	0x3C
++//#define MUSTANG_FPGA_REG_DTMF_PGA_CTL1	0x3D
++#define MUSTANG_FPGA_REG_MISC_SET_1		0x3E
++#define MUSTANG_FPGA_REG_PCMBTMUX		0x3F
++#define MUSTANG_FPGA_REG_RX_PATH_SEL		0x43
++#define MUSTANG_FPGA_REG_VDL_APGA_CTL	0x44
++//#define MUSTANG_FPGA_REG_VIBRA_CTL		0x45
++//#define MUSTANG_FPGA_REG_VIBRA_SET		0x46
++//#define MUSTANG_FPGA_REG_VIBRA_PWM_SET	0x47
++#define MUSTANG_FPGA_REG_ANAMIC_GAIN		0x48
++#define MUSTANG_FPGA_REG_MISC_SET_2		0x49
++
++/* Bitfield Definitions */
++
++/* MUSTANG_FPGA_CODEC_MODE (0x01) Fields */
++#define MUSTANG_FPGA_APLL_RATE		0xF0
++#define MUSTANG_FPGA_APLL_RATE_8000		0x00
++#define MUSTANG_FPGA_APLL_RATE_11025		0x10
++#define MUSTANG_FPGA_APLL_RATE_12000		0x20
++#define MUSTANG_FPGA_APLL_RATE_16000		0x40
++#define MUSTANG_FPGA_APLL_RATE_22050		0x50
++#define MUSTANG_FPGA_APLL_RATE_24000		0x60
++#define MUSTANG_FPGA_APLL_RATE_32000		0x80
++#define MUSTANG_FPGA_APLL_RATE_44100		0x90
++#define MUSTANG_FPGA_APLL_RATE_48000		0xA0
++#define MUSTANG_FPGA_APLL_RATE_96000		0xE0
++#define MUSTANG_FPGA_SEL_16K			0x08
++#define MUSTANG_FPGA_CODECPDZ		0x02
++#define MUSTANG_FPGA_OPT_MODE		0x01
++#define MUSTANG_FPGA_OPTION_1		(1 << 0)
++#define MUSTANG_FPGA_OPTION_2		(0 << 0)
++
++/* MUSTANG_FPGA_OPTION (0x02) Fields */
++#define MUSTANG_FPGA_ATXL1_EN		(1 << 0)
++#define MUSTANG_FPGA_ATXR1_EN		(1 << 1)
++#define MUSTANG_FPGA_ATXL2_VTXL_EN		(1 << 2)
++#define MUSTANG_FPGA_ATXR2_VTXR_EN		(1 << 3)
++#define MUSTANG_FPGA_ARXL1_VRX_EN		(1 << 4)
++#define MUSTANG_FPGA_ARXR1_EN		(1 << 5)
++#define MUSTANG_FPGA_ARXL2_EN		(1 << 6)
++#define MUSTANG_FPGA_ARXR2_EN		(1 << 7)
++
++/* MUSTANG_FPGA_REG_MICBIAS_CTL (0x04) Fields */
++#define MUSTANG_FPGA_MICBIAS2_CTL		0x40
++#define MUSTANG_FPGA_MICBIAS1_CTL		0x20
++//#define MUSTANG_FPGA_HSMICBIAS_EN		0x04
++#define MUSTANG_FPGA_MICBIAS2_EN		0x02
++#define MUSTANG_FPGA_MICBIAS1_EN		0x01
++
++/* ANAMICL (0x05) Fields */
++#define MUSTANG_FPGA_CNCL_OFFSET_START	0x80
++#define MUSTANG_FPGA_OFFSET_CNCL_SEL		0x60
++#define MUSTANG_FPGA_OFFSET_CNCL_SEL_ARX1	0x00
++#define MUSTANG_FPGA_OFFSET_CNCL_SEL_ARX2	0x20
++#define MUSTANG_FPGA_OFFSET_CNCL_SEL_VRX	0x40
++#define MUSTANG_FPGA_OFFSET_CNCL_SEL_ALL	0x60
++#define MUSTANG_FPGA_MICAMPL_EN		0x10
++#define MUSTANG_FPGA_CKMIC_EN		0x08
++#define MUSTANG_FPGA_AUXL_EN			0x04
++//#define MUSTANG_FPGA_HSMIC_EN		0x02
++#define MUSTANG_FPGA_MAINMIC_EN		0x01
++
++/* ANAMICR (0x06) Fields */
++#define MUSTANG_FPGA_MICAMPR_EN		0x10
++#define MUSTANG_FPGA_AUXR_EN			0x04
++#define MUSTANG_FPGA_SUBMIC_EN		0x01
++
++/* AVADC_CTL (0x07) Fields */
++#define MUSTANG_FPGA_ADCL_EN			0x08
++#define MUSTANG_FPGA_AVADC_CLK_PRIORITY	0x04
++#define MUSTANG_FPGA_ADCR_EN			0x02
++
++/* MUSTANG_FPGA_REG_ADCMICSEL (0x08) Fields */
++#define MUSTANG_FPGA_DIGMIC1_EN		0x08
++#define MUSTANG_FPGA_TX2IN_SEL		0x04
++#define MUSTANG_FPGA_DIGMIC0_EN		0x02
++#define MUSTANG_FPGA_TX1IN_SEL		0x01
++
++/* AUDIO_IF (0x0E) Fields */
++#define MUSTANG_FPGA_AIF_SLAVE_EN		0x80
++#define MUSTANG_FPGA_DATA_WIDTH		0x60
++#define MUSTANG_FPGA_DATA_WIDTH_16S_16W	0x00
++#define MUSTANG_FPGA_DATA_WIDTH_32S_16W	0x40
++#define MUSTANG_FPGA_DATA_WIDTH_32S_24W	0x60
++#define MUSTANG_FPGA_AIF_FORMAT		0x18
++#define MUSTANG_FPGA_AIF_FORMAT_CODEC	0x00
++#define MUSTANG_FPGA_AIF_FORMAT_LEFT		0x08
++#define MUSTANG_FPGA_AIF_FORMAT_RIGHT	0x10
++#define MUSTANG_FPGA_AIF_FORMAT_TDM		0x18
++#define MUSTANG_FPGA_AIF_TRI_EN		0x04
++#define MUSTANG_FPGA_CLK256FS_EN		0x02
++#define MUSTANG_FPGA_AIF_EN			0x01
++
++/* VOICE_IF (0x0F) Fields */
++#define MUSTANG_FPGA_VIF_SLAVE_EN		0x80
++#define MUSTANG_FPGA_VIF_DIN_EN		0x40
++#define MUSTANG_FPGA_VIF_DOUT_EN		0x20
++#define MUSTANG_FPGA_VIF_SWAP		0x10
++#define MUSTANG_FPGA_VIF_FORMAT		0x08
++#define MUSTANG_FPGA_VIF_TRI_EN		0x04
++#define MUSTANG_FPGA_VIF_SUB_EN		0x02
++#define MUSTANG_FPGA_VIF_EN			0x01
++
++/* EAR_CTL (0x21) */
++#define MUSTANG_FPGA_EAR_GAIN		0x30
++
++/* HS_GAIN_SET (0x23) Fields */
++//#define MUSTANG_FPGA_HSR_GAIN		0x0C
++//#define MUSTANG_FPGA_HSR_GAIN_PWR_DOWN	0x00
++//#define MUSTANG_FPGA_HSR_GAIN_PLUS_6DB	0x04
++//#define MUSTANG_FPGA_HSR_GAIN_0DB		0x08
++//#define MUSTANG_FPGA_HSR_GAIN_MINUS_6DB	0x0C
++//#define MUSTANG_FPGA_HSL_GAIN		0x03
++//#define MUSTANG_FPGA_HSL_GAIN_PWR_DOWN	0x00
++//#define MUSTANG_FPGA_HSL_GAIN_PLUS_6DB	0x01
++//#define MUSTANG_FPGA_HSL_GAIN_0DB		0x02
++//#define MUSTANG_FPGA_HSL_GAIN_MINUS_6DB	0x03
++
++/* HS_POPN_SET (0x24) Fields */
++//#define MUSTANG_FPGA_VMID_EN			0x40
++//#define MUSTANG_FPGA_EXTMUTE			0x20
++//#define MUSTANG_FPGA_RAMP_DELAY		0x1C
++//#define MUSTANG_FPGA_RAMP_DELAY_20MS		0x00
++//#define MUSTANG_FPGA_RAMP_DELAY_40MS		0x04
++//#define MUSTANG_FPGA_RAMP_DELAY_81MS		0x08
++//#define MUSTANG_FPGA_RAMP_DELAY_161MS	0x0C
++//#define MUSTANG_FPGA_RAMP_DELAY_323MS	0x10
++//#define MUSTANG_FPGA_RAMP_DELAY_645MS	0x14
++//#define MUSTANG_FPGA_RAMP_DELAY_1291MS	0x18
++//#define MUSTANG_FPGA_RAMP_DELAY_2581MS	0x1C
++//#define MUSTANG_FPGA_RAMP_EN			0x02
++
++/* PREDL_CTL (0x25) */
++#define MUSTANG_FPGA_PREDL_GAIN		0x30
++
++/* PREDR_CTL (0x26) */
++#define MUSTANG_FPGA_PREDR_GAIN		0x30
++
++/* PRECKL_CTL (0x27) */
++#define MUSTANG_FPGA_PRECKL_GAIN		0x30
++
++/* PRECKR_CTL (0x28) */
++#define MUSTANG_FPGA_PRECKR_GAIN		0x30
++
++/* HFL_CTL (0x29, 0x2A) Fields */
++//#define MUSTANG_FPGA_HF_CTL_HB_EN		0x04
++//#define MUSTANG_FPGA_HF_CTL_LOOP_EN		0x08
++//#define MUSTANG_FPGA_HF_CTL_RAMP_EN		0x10
++//#define MUSTANG_FPGA_HF_CTL_REF_EN		0x20
++
++/* APLL_CTL (0x3A) Fields */
++#define MUSTANG_FPGA_APLL_EN			0x10
++#define MUSTANG_FPGA_APLL_INFREQ		0x0F
++#define MUSTANG_FPGA_APLL_INFREQ_19200KHZ	0x05
++#define MUSTANG_FPGA_APLL_INFREQ_26000KHZ	0x06
++#define MUSTANG_FPGA_APLL_INFREQ_38400KHZ	0x0F
++
++/* REG_MISC_SET_1 (0x3E) Fields */
++#define MUSTANG_FPGA_CLK64_EN		0x80
++#define MUSTANG_FPGA_SCRAMBLE_EN		0x40
++#define MUSTANG_FPGA_FMLOOP_EN		0x20
++#define MUSTANG_FPGA_SMOOTH_ANAVOL_EN	0x02
++#define MUSTANG_FPGA_DIGMIC_LR_SWAP_EN	0x01
++
++/* VIBRA_CTL (0x45) */
++//#define MUSTANG_FPGA_VIBRA_EN		0x01
++//#define MUSTANG_FPGA_VIBRA_DIR		0x02
++//#define MUSTANG_FPGA_VIBRA_AUDIO_SEL_L1	(0x00 << 2)
++//#define MUSTANG_FPGA_VIBRA_AUDIO_SEL_R1	(0x01 << 2)
++//#define MUSTANG_FPGA_VIBRA_AUDIO_SEL_L2	(0x02 << 2)
++//#define MUSTANG_FPGA_VIBRA_AUDIO_SEL_R2	(0x03 << 2)
++//#define MUSTANG_FPGA_VIBRA_SEL		0x10
++//#define MUSTANG_FPGA_VIBRA_DIR_SEL		0x20
++
++/* MUSTANG_FPGA codec resource IDs */
++enum mustang_fpga_codec_res {
++	MUSTANG_FPGA_CODEC_RES_POWER = 0,
++	MUSTANG_FPGA_CODEC_RES_APLL,
++	MUSTANG_FPGA_CODEC_RES_MAX,
++};
++
++int mustang_fpga_codec_disable_resource(enum mustang_fpga_codec_res id);
++int mustang_fpga_codec_enable_resource(enum mustang_fpga_codec_res id);
++unsigned int mustang_fpga_codec_get_mclk(void);
++
++struct mustang_fpga_codec_audio_data {
++        unsigned int    audio_mclk;
++        unsigned int ramp_delay_value;
++        unsigned int hs_extmute:1;
++        void (*set_hs_extmute)(int mute);
++};
++
++struct mustang_fpga_codec_data {
++        unsigned int    audio_mclk;
++        struct mustang_fpga_codec_audio_data         *audio;
++
++        int audpwron_gpio;      /* audio power-on gpio */
++        int naudint_irq;        /* audio interrupt */
++};
++
++
++#endif	/* End of __MUSTANG_FPGA_CODEC_H__ */
