@@ -36,7 +36,11 @@ do_install_append () {
 	install -d ${D}${sysconfdir}/init.d
 	install -d ${D}${sysconfdir}/default
 	install -d ${D}${sysconfdir}/dhcp
-	install -m 0755 ${WORKDIR}/init-relay ${D}${sysconfdir}/init.d/dhcp-relay
+        install -d ${D}${sysconfdir}/dhcp3
+	install -dv ${D}${localstatedir}
+        install -dv ${D}${localstatedir}/lib
+        install -dv ${D}${localstatedir}/lib/dhcp 
+        install -m 0755 ${WORKDIR}/init-relay ${D}${sysconfdir}/init.d/dhcp-relay
 	install -m 0644 ${WORKDIR}/default-relay ${D}${sysconfdir}/default/dhcp-relay
 	install -m 0755 ${WORKDIR}/init-server ${D}${sysconfdir}/init.d/dhcp-server
 	install -m 0644 ${WORKDIR}/default-server ${D}${sysconfdir}/default/dhcp-server
@@ -49,14 +53,16 @@ do_install_append () {
 	install -d ${D}${base_sbindir}/
 	mv ${D}${sbindir}/dhclient ${D}${base_sbindir}/
 	install -m 0755 ${S}/client/scripts/linux ${D}${base_sbindir}/dhclient-script
+        ln -s /sbin/dhclient-script ${D}${sysconfdir}/dhcp3/dhclient-script  
 }
 
-PACKAGES += "dhcp-server dhcp-client dhcp-relay dhcp-omshell"
+PACKAGES += "dhcp-server dhcp-client dhcp-relay dhcp-omshell"i
 FILES_${PN} = ""
+
 FILES_dhcp-server = "${sbindir}/dhcpd ${sysconfdir}/init.d/dhcp-server ${sysconfdir}/default/dhcp-server ${sysconfdir}/dhcp/dhcpd.conf"
 FILES_dhcp-relay = "${sbindir}/dhcrelay ${sysconfdir}/init.d/dhcp-relay ${sysconfdir}/default/dhcp-relay"
 
-FILES_dhcp-client = "${base_sbindir}/dhclient ${base_sbindir}/dhclient-script ${sysconfdir}/dhcp/dhclient.conf"
+FILES_dhcp-client = "${base_sbindir}/dhclient ${base_sbindir}/dhclient-script ${sysconfdir}/dhcp/dhclient.conf ${sysconfdir}/dhcp3/dhclient-script ${localstatedir}/*"
 RDEPENDS_dhcp-client = "bash"
 
 FILES_dhcp-omshell = "${bindir}/omshell"
