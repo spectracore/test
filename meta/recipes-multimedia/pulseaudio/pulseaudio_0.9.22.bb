@@ -3,6 +3,7 @@ require pulseaudio.inc
 PR = "r0"
 
 DEPENDS += "gdbm speex"
+RDEPENDS += "ccrtp ortp"
 
 DEFAULT_PREFERENCE_om-gta01 = "-1"
 DEFAULT_PREFERENCE_om-gta02 = "-1"
