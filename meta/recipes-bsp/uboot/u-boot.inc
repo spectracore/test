@@ -15,6 +15,14 @@ UBOOT_MACHINE ?= "${MACHINE}_config"
 UBOOT_IMAGE ?= "u-boot-${MACHINE}-${PV}-${PR}.bin"
 UBOOT_SYMLINK ?= "u-boot-${MACHINE}.bin"
 
+do_configure_append () {
+        cd ${S}
+        cd arch/arm/include/asm
+        cp gpio.h  arch-omap3/
+}
+
+
+
 do_compile () {
 	unset LDFLAGS
 	unset CFLAGS
