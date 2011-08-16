@@ -12,15 +12,14 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=f30a9716ef3762e3467a2f62bf790f0a"
 
 PR = "r16"
 
-SRC_URI = "http://download.berlios.de/tslib/tslib-${PV}.tar.bz2 \
-           file://fix_version.patch;patch=1 \
+SRC_URI = "file://tslib_new_1.0.tar.bz2 \
            file://ts.conf \
            file://ts.conf-simpad-2.4 \
            file://ts.conf-collie-2.4 \
            file://tslib.sh"
 
-SRC_URI[md5sum] = "92b2eb55b1e4ef7e2c0347069389390e"
-SRC_URI[sha256sum] = "9c40d914e4f6fe00bdd77137d671c7ce4f211686228f2eb8b2d3c2360bc249c8"
+SRC_URI[md5sum] = "ac201a88e73978b39cda38a5803c2478"
+SRC_URI[sha256sum] = "e02b256abb191f0d7303947c3006f8d5d3a6c1589e5998131ee12ec71e877510"
 SRC_URI_append_mnci += " file://devfs.patch;patch=1"
 SRC_URI_append_mnci += " file://event1.patch;patch=1"
 SRC_URI_append_qemumips += " file://32bitBE-support.patch;patch=1"
@@ -28,7 +27,7 @@ SRC_URI_append_qemumips += " file://32bitBE-support.patch;patch=1"
 
 inherit autotools pkgconfig
 
-EXTRA_OECONF = "--enable-shared --disable-h3600 --enable-input --disable-corgi --disable-collie --disable-mk712 --disable-arctic2 --disable-ucb1x00"
+EXTRA_OECONF = "--enable-shared --enable-h3600 --enable-input --enable-corgi --enable-collie --enable-mk712 --enable-arctic2 --enable-ucb1x00 --enable-tatung --enable-dmc --enable-touchkit --enable-mtinput --enable-debug"
 
 do_install_prepend() {
 	install -m 0644 ${WORKDIR}/ts.conf ${S}/etc/ts.conf
