@@ -1,8 +1,8 @@
 #!/bin/sh
 
-if [ -e /dev/input/touchscreen0 ]
+if [ -e /dev/input/event0 ]
 then
-    QWS_MOUSE_PROTO=Tslib:/dev/input/touchscreen0
+    QWS_MOUSE_PROTO=LinuxXyz:/dev/input/event0
     export QWS_MOUSE_PROTO
 fi
 
