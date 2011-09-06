@@ -1,0 +1,361 @@
+From 339e62045b2d3afc687b9463bb0c0d27f2be0050 Mon Sep 17 00:00:00 2001
+From: Yogesh K Lal <embedded.yogesh@gmail.com>
+Date: Tue, 6 Sep 2011 11:53:05 +0530
+Subject: [PATCH] Initial commit for Logitech Audio driver
+
+Signed-off-by: Yogesh K Lal <yogesh.lal@spectracoretech.com>
+---
+ arch/arm/mach-omap2/devices.c           |    6 +
+ arch/arm/plat-omap/include/plat/mcspi.h |    1 +
+ drivers/spi/omap2_mcspi.c               |   33 +++++--
+ sound/soc/codecs/Makefile               |    7 +-
+ sound/soc/omap/Makefile                 |    2 +-
+ sound/soc/omap/omap3beagle_new.c        |  162 +++++++++++++++++++++++++++++++
+ 6 files changed, 200 insertions(+), 11 deletions(-)
+ create mode 100644 sound/soc/omap/omap3beagle_new.c
+
+diff --git a/arch/arm/mach-omap2/devices.c b/arch/arm/mach-omap2/devices.c
+index 5a0c148..22b6967 100644
+--- a/arch/arm/mach-omap2/devices.c
++++ b/arch/arm/mach-omap2/devices.c
+@@ -275,6 +275,10 @@ static void omap_init_audio(void)
+ static inline void omap_init_audio(void) {}
+ #endif
+ 
++int mcspi1_cs_gpios[4] = {
++			133,
++			134,
++};
+ #if defined(CONFIG_SPI_OMAP24XX) || defined(CONFIG_SPI_OMAP24XX_MODULE)
+ 
+ #include <plat/mcspi.h>
+@@ -291,6 +295,8 @@ static inline void omap_init_audio(void) {}
+ 
+ static struct omap2_mcspi_platform_config omap2_mcspi1_config = {
+ 	.num_cs		= 4,
++	.cs_gpios = mcspi1_cs_gpios,
++	
+ };
+ 
+ static struct resource omap2_mcspi1_resources[] = {
+diff --git a/arch/arm/plat-omap/include/plat/mcspi.h b/arch/arm/plat-omap/include/plat/mcspi.h
+index 1254e49..9973594 100644
+--- a/arch/arm/plat-omap/include/plat/mcspi.h
++++ b/arch/arm/plat-omap/include/plat/mcspi.h
+@@ -3,6 +3,7 @@
+ 
+ struct omap2_mcspi_platform_config {
+ 	unsigned short	num_cs;
++	int *cs_gpios;	
+ };
+ 
+ struct omap2_mcspi_device_config {
+diff --git a/drivers/spi/omap2_mcspi.c b/drivers/spi/omap2_mcspi.c
+index 951a160..819a567 100644
+--- a/drivers/spi/omap2_mcspi.c
++++ b/drivers/spi/omap2_mcspi.c
+@@ -33,7 +33,7 @@
+ #include <linux/clk.h>
+ #include <linux/io.h>
+ #include <linux/slab.h>
+-
++#include <linux/gpio.h>
+ #include <linux/spi/spi.h>
+ 
+ #include <plat/dma.h>
+@@ -129,6 +129,7 @@ struct omap2_mcspi {
+ 	unsigned long		phys;
+ 	/* SPI1 has 4 channels, while SPI2 has 2 */
+ 	struct omap2_mcspi_dma	*dma_channels;
++	int                     *cs_gpios;
+ };
+ 
+ struct omap2_mcspi_cs {
+@@ -236,6 +237,13 @@ static void omap2_mcspi_set_enable(const struct spi_device *spi, int enable)
+ static void omap2_mcspi_force_cs(struct spi_device *spi, int cs_active)
+ {
+ 	u32 l;
++	
++	struct omap2_mcspi* mcspi = spi_master_get_devdata(spi->master);
++	if (mcspi->cs_gpios)
++		printk(KERN_ERR"*****************Raju inside force %s,%s ",__func__,mcspi->cs_gpios);
++               gpio_set_value(mcspi->cs_gpios[spi->chip_select], cs_active);
++
++       // TXS times out unless we force the CHCONF reg as well
+ 
+ 	l = mcspi_cached_chconf0(spi);
+ 	MOD_REG_BIT(l, OMAP2_MCSPI_CHCONF_FORCE, cs_active);
+@@ -1147,8 +1155,12 @@ static int __init omap2_mcspi_probe(struct platform_device *pdev)
+ 	int			status = 0, i;
+ 	const u8		*rxdma_id, *txdma_id;
+ 	unsigned		num_chipselect;
+-
++	struct omap2_mcspi_platform_config* pconfig = pdev->dev.platform_data;
++	int                     num_dma;
++		
++	printk("********************Raju inside McSPI probe and the pltform id is %d",pdev->id);
+ 	switch (pdev->id) {
++	
+ 	case 1:
+ 		rxdma_id = spi1_rxdma_id;
+ 		txdma_id = spi1_txdma_id;
+@@ -1194,11 +1206,17 @@ static int __init omap2_mcspi_probe(struct platform_device *pdev)
+ 	master->transfer = omap2_mcspi_transfer;
+ 	master->cleanup = omap2_mcspi_cleanup;
+ 	master->num_chipselect = num_chipselect;
+-
++	printk(KERN_ERR"*************************Raju   %d ",num_chipselect);
+ 	dev_set_drvdata(&pdev->dev, master);
+ 
+ 	mcspi = spi_master_get_devdata(master);
+-	mcspi->master = master;
++	if (pdev->id == 1) {
++		mcspi->cs_gpios = pdev->dev.platform_data;
++		num_dma = 1;
++	} else {
++		mcspi->cs_gpios = NULL;
++		num_dma = master->num_chipselect;
++	}mcspi->master = master;
+ 
+ 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+ 	if (r == NULL) {
+@@ -1218,8 +1236,9 @@ static int __init omap2_mcspi_probe(struct platform_device *pdev)
+ 		status = -ENOMEM;
+ 		goto err1aa;
+ 	}
+-
++	printk(KERN_ERR"*************************Raju befor the work que");
+ 	INIT_WORK(&mcspi->work, omap2_mcspi_work);
++	printk(KERN_ERR"*************************Raju after the work que");
+ 
+ 	spin_lock_init(&mcspi->lock);
+ 	INIT_LIST_HEAD(&mcspi->msg_queue);
+@@ -1238,14 +1257,14 @@ static int __init omap2_mcspi_probe(struct platform_device *pdev)
+ 		goto err2;
+ 	}
+ 
+-	mcspi->dma_channels = kcalloc(master->num_chipselect,
++	mcspi->dma_channels = kcalloc(num_dma,
+ 			sizeof(struct omap2_mcspi_dma),
+ 			GFP_KERNEL);
+ 
+ 	if (mcspi->dma_channels == NULL)
+ 		goto err3;
+ 
+-	for (i = 0; i < num_chipselect; i++) {
++	for (i = 0; i < num_dma; i++) {
+ 		mcspi->dma_channels[i].dma_rx_channel = -1;
+ 		mcspi->dma_channels[i].dma_rx_sync_dev = rxdma_id[i];
+ 		mcspi->dma_channels[i].dma_tx_channel = -1;
+diff --git a/sound/soc/codecs/Makefile b/sound/soc/codecs/Makefile
+index f67a2d6..6ae3236 100644
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -20,11 +20,12 @@ snd-soc-pcm3008-objs := pcm3008.o
+ snd-soc-spdif-objs := spdif_transciever.o
+ snd-soc-ssm2602-objs := ssm2602.o
+ snd-soc-stac9766-objs := stac9766.o
+-snd-soc-tlv320aic23-objs := tlv320aic23.o
++#snd-soc-tlv320aic23-objs := tlv320aic23.o
+ snd-soc-tlv320aic26-objs := tlv320aic26.o
+ snd-soc-tlv320aic3x-objs := tlv320aic3x.o
+ snd-soc-tlv320dac33-objs := tlv320dac33.o
+-snd-soc-twl4030-objs := twl4030.o
++#snd-soc-twl4030-objs := twl4030.o
++snd-soc-twl4030-objs := tlv320aic23.o
+ snd-soc-twl6040-objs := twl6040.o
+ snd-soc-uda134x-objs := uda134x.o
+ snd-soc-uda1380-objs := uda1380.o
+@@ -97,7 +98,7 @@ obj-$(CONFIG_SND_SOC_SSM2602)	+= snd-soc-ssm2602.o
+ obj-$(CONFIG_SND_SOC_STAC9766)	+= snd-soc-stac9766.o
+ obj-$(CONFIG_SND_SOC_TLV320AIC23)	+= snd-soc-tlv320aic23.o
+ obj-$(CONFIG_SND_SOC_TLV320AIC26)	+= snd-soc-tlv320aic26.o
+-obj-$(CONFIG_SND_SOC_TLV320AIC3X)	+= snd-soc-tlv320aic3x.o
++#obj-$(CONFIG_SND_SOC_TLV320AIC3X)	+= snd-soc-tlv320aic3x.o
+ obj-$(CONFIG_SND_SOC_TLV320DAC33)	+= snd-soc-tlv320dac33.o
+ obj-$(CONFIG_SND_SOC_TWL4030)	+= snd-soc-twl4030.o
+ obj-$(CONFIG_SND_SOC_TWL6040)	+= snd-soc-twl6040.o
+diff --git a/sound/soc/omap/Makefile b/sound/soc/omap/Makefile
+index ba9fc65..d374b7e 100644
+--- a/sound/soc/omap/Makefile
++++ b/sound/soc/omap/Makefile
+@@ -19,7 +19,7 @@ snd-soc-am3517evm-objs := am3517evm.o
+ snd-soc-sdp3430-objs := sdp3430.o
+ snd-soc-sdp4430-objs := sdp4430.o
+ snd-soc-omap3pandora-objs := omap3pandora.o
+-snd-soc-omap3beagle-objs := omap3beagle.o
++snd-soc-omap3beagle-objs := omap3beagle_new.o
+ snd-soc-zoom2-objs := zoom2.o
+ snd-soc-igep0020-objs := igep0020.o
+ 
+diff --git a/sound/soc/omap/omap3beagle_new.c b/sound/soc/omap/omap3beagle_new.c
+new file mode 100644
+index 0000000..0ef02dd
+--- /dev/null
++++ b/sound/soc/omap/omap3beagle_new.c
+@@ -0,0 +1,162 @@
++/*
++ * omap3beagle.c  --  SoC audio for OMAP3 Beagle
++ *
++ * Author: Steve Sakoman <steve@sakoman.com>
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * version 2 as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
++ * 02110-1301 USA
++ *
++ */
++
++#include <linux/clk.h>
++#include <linux/platform_device.h>
++#include <sound/core.h>
++#include <sound/pcm.h>
++#include <sound/soc.h>
++#include <sound/soc-dapm.h>
++
++#include <asm/mach-types.h>
++#include <mach/hardware.h>
++#include <mach/gpio.h>
++#include <plat/mcbsp.h>
++
++#include "omap-mcbsp.h"
++#include "omap-pcm.h"
++#include "../codecs/tlv320aic3x.h"
++
++static int omap3beagle_hw_params(struct snd_pcm_substream *substream,
++	struct snd_pcm_hw_params *params)
++{
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
++	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
++	unsigned int fmt;
++	int ret;
++	printk(KERN_ERR"***********************Raju %s*********",__func__);
++	printk(KERN_ERR"***********************Raju %d*********",params_channels(params));
++
++	switch (params_channels(params)) {
++	case 2: /* Stereo I2S mode */
++		fmt =	SND_SOC_DAIFMT_I2S |
++			SND_SOC_DAIFMT_NB_NF |
++			SND_SOC_DAIFMT_CBM_CFM;
++		break;
++	case 4: /* Four channel TDM mode */
++		fmt =	SND_SOC_DAIFMT_DSP_A |
++			SND_SOC_DAIFMT_IB_NF |
++			SND_SOC_DAIFMT_CBM_CFM;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	/* Set codec DAI configuration */
++	ret = snd_soc_dai_set_fmt(codec_dai, fmt);
++	if (ret < 0) {
++		printk(KERN_ERR "can't set codec DAI configuration\n");
++		return ret;
++	}
++
++	/* Set cpu DAI configuration */
++	ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
++	if (ret < 0) {
++		printk(KERN_ERR "can't set cpu DAI configuration\n");
++		return ret;
++	}
++
++	/* Set the codec system clock for DAC and ADC */
++	ret = snd_soc_dai_set_sysclk(codec_dai, 0, 26000000,
++				     SND_SOC_CLOCK_IN);
++	if (ret < 0) {
++		printk(KERN_ERR "can't set codec system clock\n");
++		return ret;
++	}
++
++	return 0;
++}
++
++static struct snd_soc_ops omap3beagle_ops = {
++	.hw_params = omap3beagle_hw_params,
++};
++
++/* Digital audio interface glue - connects codec <--> CPU */
++static struct snd_soc_dai_link omap3beagle_dai = {
++	.name = "tlv320aic3x",
++	.stream_name = "TLV320AIC3X",
++	.cpu_dai = &omap_mcbsp_dai[0],
++	.codec_dai = &aic3x_dai,
++	.ops = &omap3beagle_ops,
++};
++
++/* Audio machine driver */
++static struct snd_soc_card snd_soc_omap3beagle = {
++	.name = "omap3beagle",
++	.platform = &omap_soc_platform,
++	.dai_link = &omap3beagle_dai,
++	.num_links = 1,
++};
++
++/* Audio subsystem */
++static struct snd_soc_device omap3beagle_snd_devdata = {
++	.card = &snd_soc_omap3beagle,
++	.codec_dev = &soc_codec_dev_aic3x,
++};
++
++static struct platform_device *omap3beagle_snd_device;
++
++static int __init omap3beagle_soc_init(void)
++{
++	int ret;
++
++	if (!machine_is_omap3_beagle()) {
++		pr_debug("Not OMAP3 Beagle!\n");
++		return -ENODEV;
++	}
++	pr_info("OMAP3 Beagle SoC init\n");
++		printk(KERN_ERR "*************Raju************ %s\n",__func__);
++
++	omap3beagle_snd_device = platform_device_alloc("soc-audio", -1);
++	if (!omap3beagle_snd_device) {
++		printk(KERN_ERR "Platform device allocation failed\n");
++		return -ENOMEM;
++	}
++
++	platform_set_drvdata(omap3beagle_snd_device, &omap3beagle_snd_devdata);
++	omap3beagle_snd_devdata.dev = &omap3beagle_snd_device->dev;
++	*(unsigned int *)omap3beagle_dai.cpu_dai->private_data = 1; /* McBSP2 */
++
++	ret = platform_device_add(omap3beagle_snd_device);
++	if (ret)
++		goto err1;
++
++	return 0;
++
++err1:
++	printk(KERN_ERR "Unable to add platform device\n");
++	platform_device_put(omap3beagle_snd_device);
++
++	return ret;
++}
++
++static void __exit omap3beagle_soc_exit(void)
++{
++	platform_device_unregister(omap3beagle_snd_device);
++}
++
++module_init(omap3beagle_soc_init);
++module_exit(omap3beagle_soc_exit);
++
++MODULE_AUTHOR("Steve Sakoman <steve@sakoman.com>");
++MODULE_DESCRIPTION("ALSA SoC OMAP3 Beagle");
++MODULE_LICENSE("GPL");
+-- 
+1.7.1
+

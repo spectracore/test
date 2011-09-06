@@ -23,7 +23,9 @@ SRCREV_FORMAT = "meta_machine"
 
 SRC_URI = "git://git.pokylinux.org/linux-yocto-2.6.37;protocol=git;nocheckout=1;branch=${KBRANCH},meta;name=machine,meta \
 	   file://beagle.patch \
-	   file://brown_maxtouch.patch"
+	   file://brown_maxtouch.patch \
+	   file://0001-Initial-commit-for-Logitech-Audio-driver.patch \
+	   file://0001-Adding-support-for-GPIO.patch"
 
 COMPATIBLE_MACHINE = "(qemuarm|qemux86|qemuppc|qemumips|qemux86-64|mpc8315e-rdb|routerstationpro|beagleboard)"
 

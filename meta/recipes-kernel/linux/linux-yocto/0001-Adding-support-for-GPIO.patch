@@ -1,0 +1,166 @@
+From 9fadb11823789d4b7388b454ea19faab75a4e421 Mon Sep 17 00:00:00 2001
+From: Yogesh K Lal <embedded.yogesh@gmail.com>
+Date: Tue, 6 Sep 2011 17:58:41 +0530
+Subject: [PATCH] Adding support for GPIO
+
+Signed-off-by: Yogesh K Lal <yogesh.lal@spectracoretech.com>
+---
+ sound/soc/codecs/Makefile        |    6 ++--
+ sound/soc/omap/omap3beagle_new.c |   70 ++++++++++++++++++++++++++-----------
+ 2 files changed, 52 insertions(+), 24 deletions(-)
+
+diff --git a/sound/soc/codecs/Makefile b/sound/soc/codecs/Makefile
+index 6ae3236..e02ea4a 100644
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -20,12 +20,12 @@ snd-soc-pcm3008-objs := pcm3008.o
+ snd-soc-spdif-objs := spdif_transciever.o
+ snd-soc-ssm2602-objs := ssm2602.o
+ snd-soc-stac9766-objs := stac9766.o
+-#snd-soc-tlv320aic23-objs := tlv320aic23.o
++snd-soc-tlv320aic23-objs := tlv320aic23.o
+ snd-soc-tlv320aic26-objs := tlv320aic26.o
+-snd-soc-tlv320aic3x-objs := tlv320aic3x.o
++#snd-soc-tlv320aic3x-objs := tlv320aic3x.o
+ snd-soc-tlv320dac33-objs := tlv320dac33.o
+ #snd-soc-twl4030-objs := twl4030.o
+-snd-soc-twl4030-objs := tlv320aic23.o
++snd-soc-twl4030-objs := tlv320aic3x.o
+ snd-soc-twl6040-objs := twl6040.o
+ snd-soc-uda134x-objs := uda134x.o
+ snd-soc-uda1380-objs := uda1380.o
+diff --git a/sound/soc/omap/omap3beagle_new.c b/sound/soc/omap/omap3beagle_new.c
+index 0ef02dd..f92b29a 100644
+--- a/sound/soc/omap/omap3beagle_new.c
++++ b/sound/soc/omap/omap3beagle_new.c
+@@ -25,6 +25,7 @@
+ #include <sound/pcm.h>
+ #include <sound/soc.h>
+ #include <sound/soc-dapm.h>
++#include <linux/gpio.h>
+ 
+ #include <asm/mach-types.h>
+ #include <mach/hardware.h>
+@@ -35,16 +36,18 @@
+ #include "omap-pcm.h"
+ #include "../codecs/tlv320aic3x.h"
+ 
++#define OMAP3_CODEC_SELECT_GPIO1    133
++#define OMAP3_CODEC_SELECT_GPIO2    134
++
++
+ static int omap3beagle_hw_params(struct snd_pcm_substream *substream,
+ 	struct snd_pcm_hw_params *params)
+ {
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+-	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
+-	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
++	struct snd_soc_dai *codec_dai = rtd->codec_dai;
++	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+ 	unsigned int fmt;
+ 	int ret;
+-	printk(KERN_ERR"***********************Raju %s*********",__func__);
+-	printk(KERN_ERR"***********************Raju %d*********",params_channels(params));
+ 
+ 	switch (params_channels(params)) {
+ 	case 2: /* Stereo I2S mode */
+@@ -94,37 +97,57 @@ static struct snd_soc_ops omap3beagle_ops = {
+ static struct snd_soc_dai_link omap3beagle_dai = {
+ 	.name = "tlv320aic3x",
+ 	.stream_name = "TLV320AIC3X",
+-	.cpu_dai = &omap_mcbsp_dai[0],
+-	.codec_dai = &aic3x_dai,
++	.cpu_dai_name = "omap-mcbsp-dai.1",
++	.platform_name = "omap-pcm-audio",
++	.codec_dai_name = "tlv320aic3x-hifi",
++	.codec_name = "tlv320aic3x-codec",
+ 	.ops = &omap3beagle_ops,
+ };
+ 
+ /* Audio machine driver */
+ static struct snd_soc_card snd_soc_omap3beagle = {
+ 	.name = "omap3beagle",
+-	.platform = &omap_soc_platform,
++	.owner = THIS_MODULE,
+ 	.dai_link = &omap3beagle_dai,
+ 	.num_links = 1,
+ };
+ 
+-/* Audio subsystem */
+-static struct snd_soc_device omap3beagle_snd_devdata = {
+-	.card = &snd_soc_omap3beagle,
+-	.codec_dev = &soc_codec_dev_aic3x,
+-};
+-
+ static struct platform_device *omap3beagle_snd_device;
+ 
+ static int __init omap3beagle_soc_init(void)
+ {
+ 	int ret;
+ 
+-	if (!machine_is_omap3_beagle()) {
+-		pr_debug("Not OMAP3 Beagle!\n");
++	if (!(machine_is_omap3_beagle() || machine_is_devkit8000()))
+ 		return -ENODEV;
+-	}
+-	pr_info("OMAP3 Beagle SoC init\n");
+-		printk(KERN_ERR "*************Raju************ %s\n",__func__);
++	pr_info("OMAP3 Beagle/Devkit8000 SoC init\n");
++
++	ret = gpio_request(OMAP3_CODEC_SELECT_GPIO1, "omap3_codec1");
++        if (ret) {
++                printk(KERN_ERR "Failed to get OMAP3 CODEC GPIO1 \n");
++                return ret;
++        }
++
++        ret = gpio_direction_output(OMAP3_CODEC_SELECT_GPIO1, 0);
++        if (ret) {
++                printk(KERN_ERR "Failed to set OMAP3 CODEC  GPIO1 direction\n");
++                goto fail0;
++        }
++
++        ret = gpio_request(OMAP3_CODEC_SELECT_GPIO2, "amp_power");
++        if (ret) {
++                printk(KERN_ERR "Failed to get OMAP3 CODEC GPIO2 \n");
++                goto fail0;
++        }
++
++        ret = gpio_direction_output(OMAP3_CODEC_SELECT_GPIO2, 0);
++        if (ret) {
++                printk(KERN_ERR "Failed to set OMAP3 CODEC GPIO2 direction\n");
++                goto fail1;
++        }
++       gpio_set_value(OMAP3_CODEC_SELECT_GPIO1,1);
++       gpio_set_value(OMAP3_CODEC_SELECT_GPIO2,1);
++
+ 
+ 	omap3beagle_snd_device = platform_device_alloc("soc-audio", -1);
+ 	if (!omap3beagle_snd_device) {
+@@ -132,9 +155,7 @@ static int __init omap3beagle_soc_init(void)
+ 		return -ENOMEM;
+ 	}
+ 
+-	platform_set_drvdata(omap3beagle_snd_device, &omap3beagle_snd_devdata);
+-	omap3beagle_snd_devdata.dev = &omap3beagle_snd_device->dev;
+-	*(unsigned int *)omap3beagle_dai.cpu_dai->private_data = 1; /* McBSP2 */
++	platform_set_drvdata(omap3beagle_snd_device, &snd_soc_omap3beagle);
+ 
+ 	ret = platform_device_add(omap3beagle_snd_device);
+ 	if (ret)
+@@ -146,6 +167,13 @@ err1:
+ 	printk(KERN_ERR "Unable to add platform device\n");
+ 	platform_device_put(omap3beagle_snd_device);
+ 
++fail1:
++        gpio_free(OMAP3_CODEC_SELECT_GPIO1);
++fail0:
++        gpio_free(OMAP3_CODEC_SELECT_GPIO1);
++        
++
++
+ 	return ret;
+ }
+ 
+-- 
+1.7.1
+
